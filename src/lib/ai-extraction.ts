@@ -33,6 +33,8 @@ const INVOICE_RESPONSE_SCHEMA = {
     currency: { type: ['string', 'null'] },
     paymentMethod: { type: ['string', 'null'] },
     agentName: { type: ['string', 'null'] },
+    terms: { type: ['string', 'null'] },
+    termsDays: { type: ['number', 'string', 'null'] },
     phoneNumber: { type: ['string', 'null'] },
     email: { type: ['string', 'null'] },
     website: { type: ['string', 'null'] },
@@ -61,15 +63,15 @@ const INVOICE_RESPONSE_SCHEMA = {
 const PROMPT_TIMEOUT_MS = 45_000;
 const AGENT_PROMPT_TIMEOUT_MS = 15_000;
 
-const EXTRACTION_SYSTEM_PROMPT = `You are an expert invoice data extraction AI. Your task is to analyze invoice text and extract structured data.
+const EXTRACTION_SYSTEM_PROMPT = `You are an expert invoice data extraction AI. Your task is to analyze invoice images and extract structured data with high accuracy.
 
 Extract the following information from invoices:
 - Merchant name and address
 - Invoice number and date
-- Sales agent / cashier / account representative name (store in agentName exactly as shown)
+- Terms and agent information (look for "TERMS/AGENT" fields)
 - Individual line items with quantities, prices
 - Subtotal, tax, and total amounts
-- Currency (look for currency symbols like $, €, £, ¥, or currency codes like USD, EUR, GBP, JPY)
+- Currency (look for currency symbols like $, €, £, ¥, ₱, or currency codes like USD, EUR, GBP, JPY, PHP)
 - Payment method if visible
 - Contact information (phone, email, website)
 
@@ -87,6 +89,8 @@ Return your response as valid JSON in this exact format:
   "date": "YYYY-MM-DD",
   "time": "HH:MM",
   "agentName": "string",
+  "terms": "string",
+  "termsDays": number,
   "items": [
     {
       "id": "string",
@@ -109,20 +113,64 @@ Return your response as valid JSON in this exact format:
   "confidence": number
 }
 
-Rules:
-1. Always return valid JSON
-2. Use null for missing values
-3. Generate unique IDs for items using format "item_1", "item_2", etc.
-4. Confidence should be 0-1 based on text clarity and completeness
-5. Parse dates to ISO format (YYYY-MM-DD)
-6. Extract prices as numbers without currency symbols
-7. If multiple items have same name, treat as separate items
-8. Include tax and subtotal if clearly labeled
-9. For unclear text, use your best interpretation but lower confidence
-10. Capture the sales agent / cashier / representative name if present and assign to agentName (e.g., "SALES AGENT Juan Dela Cruz" → agentName: "Juan Dela Cruz")
-11. IMPORTANT: Always detect and return the correct currency code (USD, EUR, GBP, JPY, etc.) based on currency symbols or text in the invoice
-12. If no currency is clearly indicated, default to USD but note this in the confidence score
-13. Always include at least merchantName and total if visible`;
+CRITICAL RULES FOR ACCURATE EXTRACTION:
+
+1. **Terms and Agent Parsing**: Look for "TERMS/AGENT" fields. Extract:
+   - terms: The full terms text (e.g., "120 DAYS")
+   - termsDays: The numeric value (e.g., 120)
+   - agentName: The agent name (may be in parentheses or just after the terms)
+   - CRITICAL: Look for text like "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD" and extract:
+     * terms: "120 DAYS"
+     * termsDays: 120
+     * agentName: "ROGER" or "EDWARD" (the name after the terms)
+   - Do NOT confuse the signature name with the agent name - agent is in the TERMS/AGENT field, signature is at the bottom
+
+2. **Total Amount Validation**: 
+   - Look for handwritten totals (often in red ink or highlighted)
+   - Calculate the sum of all item totalPrice values
+   - If the calculated sum doesn't match the handwritten total, use the handwritten total and note the discrepancy
+   - The handwritten total takes precedence over calculated totals
+
+3. **Item Quantity Handling**:
+   - Pay attention to crossed-out items (single horizontal line through quantity) - these should be excluded
+   - Pay attention to circled items - these are the actual quantities to use
+   - Only include items that are NOT crossed out or are clearly marked as valid
+   - CRITICAL: Read the exact quantity numbers as written in the QUANTITY column
+   - If an item shows "50" in the quantity column, extract quantity as 50, not 1
+   - Double-check that quantity × unitPrice = totalPrice for each item
+
+4. **Address Accuracy**:
+   - Extract the exact address as written (e.g., "QUEZON CITY" not "BUREON CITY")
+   - Be precise with location names
+
+5. **General Rules**:
+   - Always return valid JSON
+   - Use null for missing values
+   - Generate unique IDs for items using format "item_1", "item_2", etc.
+   - Confidence should be 0-1 based on text clarity and completeness
+   - Parse dates to ISO format (YYYY-MM-DD)
+   - Extract prices as numbers without currency symbols
+   - If multiple items have same name, treat as separate items
+   - Include tax and subtotal if clearly labeled
+   - For unclear text, use your best interpretation but lower confidence
+   - IMPORTANT: Always detect and return the correct currency code based on currency symbols or text in the invoice
+   - If no currency is clearly indicated, default to PHP but note this in the confidence score
+   - Always include at least merchantName and total if visible
+
+6. **Quality Checks**:
+   - Verify that the extracted total matches the handwritten total
+   - Ensure quantities match what's actually marked as valid (not crossed out)
+   - Double-check agent name extraction from the correct field
+   - Validate that all monetary values are reasonable
+
+EXAMPLE: For "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD":
+- terms: "120 DAYS"
+- termsDays: 120
+- agentName: "ROGER" or "EDWARD"
+
+For items with quantity "50" in the QUANTITY column:
+- quantity: 50 (not 1)
+- If unitPrice is 38 and quantity is 50, then totalPrice should be 1900`;
 
 class AIInvoiceExtractor {
   private languageModel: any = null;
@@ -342,7 +390,7 @@ class AIInvoiceExtractor {
           }, PROMPT_TIMEOUT_MS);
 
           response = await session.prompt(
-            'Extract the invoice data as JSON with the fields merchantName, merchantAddress, agentName, invoiceNumber, date, time, subtotal, tax, total, currency, paymentMethod, phoneNumber, email, website, confidence, and items (array with name, description, quantity, unitPrice, totalPrice, category). Output plain numbers for monetary values (no currency symbols or commas). If no agent is present, set agentName to null. Return only the JSON object.',
+            'Extract the invoice data as JSON with the fields merchantName, merchantAddress, agentName, terms, termsDays, invoiceNumber, date, time, subtotal, tax, total, currency, paymentMethod, phoneNumber, email, website, confidence, and items (array with name, description, quantity, unitPrice, totalPrice, category). Pay special attention to: 1) TERMS/AGENT fields - look for "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD" format and extract terms="120 DAYS", termsDays=120, agentName="ROGER" or "EDWARD", 2) Handwritten totals (often in red ink) - use these over calculated totals, 3) Crossed-out items should be excluded, circled items are valid, 4) Read exact quantities from QUANTITY column (if it shows "50", extract quantity=50, not 1), 5) Handle comma-separated numbers like "13,365" correctly. Output plain numbers for monetary values (no currency symbols or commas). Return only the JSON object.',
             {
               signal: fallbackController.signal,
             }
@@ -449,11 +497,20 @@ class AIInvoiceExtractor {
       const toNumber = (value: any): number | null => {
         if (typeof value === 'number' && Number.isFinite(value)) return value;
         if (typeof value === 'string') {
-          const cleaned = value.replace(/[^0-9.,\-]/g, '').replace(/,(?=\d{3}(?!\d))/g, '');
-          const normalized = cleaned.includes(',') && cleaned.indexOf(',') > cleaned.indexOf('.')
-            ? cleaned.replace(/,/g, '')
-            : cleaned.replace(/,/g, '');
-          const num = parseFloat(normalized);
+          // Handle comma-separated numbers like "13,365"
+          let cleaned = value.replace(/[^0-9.,\-]/g, '');
+          
+          // If it's a comma-separated number (like 13,365), remove commas
+          if (cleaned.includes(',') && !cleaned.includes('.')) {
+            cleaned = cleaned.replace(/,/g, '');
+          }
+          // If it has both comma and decimal, handle as currency format
+          else if (cleaned.includes(',') && cleaned.includes('.')) {
+            // Assume comma is thousands separator, decimal is decimal point
+            cleaned = cleaned.replace(/,/g, '');
+          }
+          
+          const num = parseFloat(cleaned);
           return Number.isFinite(num) ? num : null;
         }
         return null;
@@ -483,6 +540,54 @@ class AIInvoiceExtractor {
       normalized.merchantName = parsed.merchantName || parsed.merchant || parsed.vendor || 'Unknown Merchant';
       normalized.invoiceNumber = parsed.invoiceNumber || parsed.invoice_number || parsed.invoice_no || parsed.invoiceId || null;
       normalized.date = parsed.date ? toIsoDate(parsed.date) : toIsoDate(parsed.invoice_date || parsed.transaction_date || new Date().toISOString());
+      
+      // Extract terms and agent information
+      normalized.terms = parsed.terms || null;
+      normalized.termsDays = toNumber(parsed.termsDays) || null;
+      
+      // Fallback: Try to extract terms/agent from raw text if not found in structured data
+      if (!normalized.terms || !normalized.termsDays || !normalized.agentName) {
+        console.log('[ShawAI] Attempting fallback extraction for terms/agent from raw response');
+        const rawText = response.toLowerCase();
+        
+        // Look for TERMS/AGENT pattern - try with parentheses first, then without
+        let termsAgentMatch = rawText.match(/terms\/agent[:\s]*(\d+)\s*days?\s*\(([^)]+)\)/i);
+        if (!termsAgentMatch) {
+          // Try without parentheses: "120 DAYS EDWARD"
+          termsAgentMatch = rawText.match(/terms\/agent[:\s]*(\d+)\s*days?\s+([a-zA-Z\s]+)/i);
+        }
+        if (termsAgentMatch) {
+          console.log('[ShawAI] Found TERMS/AGENT pattern:', termsAgentMatch);
+          if (!normalized.termsDays) {
+            normalized.termsDays = parseInt(termsAgentMatch[1]);
+          }
+          if (!normalized.terms) {
+            normalized.terms = `${termsAgentMatch[1]} DAYS`;
+          }
+          if (!normalized.agentName) {
+            normalized.agentName = termsAgentMatch[2].trim();
+          }
+        }
+        
+        // Alternative patterns
+        if (!normalized.termsDays) {
+          const daysMatch = rawText.match(/(\d+)\s*days?/i);
+          if (daysMatch) {
+            console.log('[ShawAI] Found days pattern:', daysMatch);
+            normalized.termsDays = parseInt(daysMatch[1]);
+            if (!normalized.terms) {
+              normalized.terms = `${daysMatch[1]} DAYS`;
+            }
+          }
+        }
+        
+        console.log('[ShawAI] Final terms/agent extraction:', {
+          terms: normalized.terms,
+          termsDays: normalized.termsDays,
+          agentName: normalized.agentName
+        });
+      }
+      
       const agentFromKnownKeys = parsed.agentName || parsed.agent || parsed.salesAgent || parsed.salesperson || parsed.cashier || parsed.representative || parsed.accountManager;
       if (agentFromKnownKeys) {
         normalized.agentName = agentFromKnownKeys;
@@ -543,7 +648,7 @@ class AIInvoiceExtractor {
         }
       }
       
-      normalized.currency = detectedCurrency || 'USD';
+      normalized.currency = detectedCurrency || 'PHP';
       normalized.paymentMethod = parsed.paymentMethod || parsed.payment_method || parsed.payment_type || null;
       normalized.confidence = toNumber(parsed.confidence) ?? 0.5;
 
@@ -563,6 +668,26 @@ class AIInvoiceExtractor {
           category: item.category || null
         } as InvoiceItem;
       });
+
+      // Validation: Check if item totals match the handwritten total
+      const calculatedTotal = normalized.items.reduce((sum: number, item: InvoiceItem) => sum + (item.totalPrice || 0), 0);
+      const handwrittenTotal = total;
+      
+      if (Math.abs(calculatedTotal - handwrittenTotal) > 0.01) {
+        console.warn(`[ShawAI] Total mismatch detected:`, {
+          calculatedTotal,
+          handwrittenTotal,
+          difference: Math.abs(calculatedTotal - handwrittenTotal)
+        });
+        
+        // Use the handwritten total as it's more likely to be correct
+        normalized.total = handwrittenTotal;
+        
+        // Lower confidence if there's a significant discrepancy
+        if (normalized.confidence && Math.abs(calculatedTotal - handwrittenTotal) > 100) {
+          normalized.confidence = Math.max(0.1, (normalized.confidence || 0.5) - 0.2);
+        }
+      }
 
       return normalized;
     } catch (error) {
@@ -684,7 +809,7 @@ export interface ChromeAIStatus {
   languageModelAvailable: boolean;
 }
 
-const DESCRIPTION_PROMPT = 'Describe the key contents of the provided image in 2-3 concise sentences. Focus on what is visibly present without speculation.';
+const DESCRIPTION_PROMPT = 'Extract and describe ALL visible information from this invoice image. Include: merchant name, address, invoice number, date, terms/agent information, all item details (quantities, descriptions, prices), totals, currency, and any other text or numbers you can see. IMPORTANT: Pay attention to crossed-out rows (items with horizontal lines through them) - these should be EXCLUDED from your analysis. Only include items that are NOT crossed out or are clearly marked as valid. Be thorough and detailed - list everything that is clearly visible and valid in the image.';
 
 export async function checkChromeAIAvailability(): Promise<ChromeAIStatus> {
   if (typeof window === 'undefined') {
@@ -792,11 +917,11 @@ export async function describeImage(imageFile: File): Promise<string> {
     initialPrompts: [
       {
         role: 'system',
-        content: 'You are a concise visual assistant who describes images clearly and factually.',
+        content: 'You are a detailed invoice analysis assistant. Your task is to extract and describe ALL visible information from invoice images. Be thorough, accurate, and comprehensive. Include every piece of text, number, and detail you can see. CRITICAL: Pay attention to crossed-out items (rows with horizontal lines through them) and EXCLUDE them from your analysis. Only include items that are clearly valid and not crossed out.',
       },
     ],
-    temperature: 0.7,
-    topK: 3,
+    temperature: 0.1,
+    topK: 1,
   });
 
   try {
@@ -806,7 +931,7 @@ export async function describeImage(imageFile: File): Promise<string> {
         content: [
           {
             type: 'text',
-            value: 'Here is an image. Describe what you see.',
+            value: 'Analyze this invoice image and extract all visible information. Include merchant details, invoice numbers, dates, terms, agent information, all line items with quantities and prices, totals, and any other text or numbers visible in the image. IMPORTANT: Exclude any crossed-out rows (items with horizontal lines through them) from your analysis. Only include items that are clearly valid and not crossed out.',
           },
           {
             type: 'image',

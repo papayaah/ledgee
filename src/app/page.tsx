@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import InvoiceDropzone from '@/components/InvoiceDropzone';
 import InvoiceList from '@/components/InvoiceList';
+import InvoiceDetails from '@/components/InvoiceDetails';
 import DemoInstructions from '@/components/DemoInstructions';
 import AITestComponent from '@/components/AITestComponent';
 import SampleImages from '@/components/SampleImages';
@@ -40,7 +41,7 @@ export default function HomePage() {
     
     (invoices || []).forEach(inv => {
       const value = typeof inv?.total === 'number' ? inv.total : parseFloat(String(inv?.total ?? 0));
-      const currency = inv?.currency || 'USD';
+      const currency = inv?.currency || 'PHP';
       
       if (Number.isFinite(value)) {
         totals[currency] = (totals[currency] || 0) + value;
@@ -50,16 +51,16 @@ export default function HomePage() {
     return totals;
   }, [invoices]);
 
-  // Get the primary currency (most used) or default to USD
+  // Get the primary currency (most used) or default to PHP
   const primaryCurrency = useMemo(() => {
     const currencies = Object.keys(totalAmountsByCurrency);
-    if (currencies.length === 0) return 'USD';
+    if (currencies.length === 0) return 'PHP';
     if (currencies.length === 1) return currencies[0];
     
     // Find the currency with the most invoices
     const currencyCounts: Record<string, number> = {};
     (invoices || []).forEach(inv => {
-      const currency = inv?.currency || 'USD';
+      const currency = inv?.currency || 'PHP';
       currencyCounts[currency] = (currencyCounts[currency] || 0) + 1;
     });
     
@@ -407,7 +408,8 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Upload Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Left column - Drop zone */}
           <div className="space-y-6">
             {/* Sample Images */}
@@ -447,7 +449,10 @@ export default function HomePage() {
                 </p>
               )}
             </div>
+          </div>
 
+          {/* Right column - Quick Image Description */}
+          <div className="space-y-6">
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">Quick Image Description</h2>
@@ -477,10 +482,7 @@ export default function HomePage() {
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Right column - Invoice list or selected invoice */}
-          <div className="space-y-6">
             {/* Delete All Data Button */}
             {invoices.length > 0 && (
               <div className="bg-card border border-border rounded-lg p-4">
@@ -496,6 +498,18 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Invoice List Section */}
+        {invoices.length > 0 && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Invoice List</h2>
+              <div className="text-sm text-muted-foreground">
+                {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+              </div>
+            </div>
             {agentSummaries.length > 0 && (
               <div className="bg-card border border-border rounded-lg p-6 space-y-4">
                 <div className="flex items-center justify-between">
@@ -553,135 +567,11 @@ export default function HomePage() {
             )}
 
             {selectedInvoice ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">Invoice Details</h2>
-                  <button
-                    onClick={() => setSelectedInvoice(null)}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    ← Back to List
-                  </button>
-                </div>
-                
-                <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-xl font-semibold">{selectedInvoice.merchantName}</h3>
-                      <p className="text-muted-foreground">
-                        {selectedInvoice.date} {selectedInvoice.time && `• ${selectedInvoice.time}`}
-                      </p>
-                      {selectedInvoice.invoiceNumber && (
-                        <p className="text-sm text-muted-foreground">#{selectedInvoice.invoiceNumber}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-primary">
-                        {formatCurrencyWithLocale(selectedInvoice.total, selectedInvoice.currency || primaryCurrency)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedInvoice.agentName && (
-                    <div className="text-sm text-muted-foreground">
-                      Agent:{' '}
-                      <button
-                        className="text-primary hover:underline"
-                        onClick={() => handleAgentSelect(selectedInvoice.agentName!)}
-                      >
-                        {selectedInvoice.agentName}
-                      </button>
-                    </div>
-                  )}
-
-                  {selectedInvoice.merchantAddress && (
-                    <div>
-                      <h4 className="font-medium mb-2">Address</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedInvoice.merchantAddress.full || 
-                         `${selectedInvoice.merchantAddress.street || ''} ${selectedInvoice.merchantAddress.city || ''} ${selectedInvoice.merchantAddress.state || ''} ${selectedInvoice.merchantAddress.zipCode || ''}`.trim()}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedInvoice.items.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2">Items</h4>
-                      <div className="space-y-2">
-                        {selectedInvoice.items.map((item, index) => (
-                          <div key={index} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
-                            <div className="flex-1">
-                              <div className="font-medium">{item.name}</div>
-                              {item.description && (
-                                <div className="text-sm text-muted-foreground">{item.description}</div>
-                              )}
-                              <div className="text-sm text-muted-foreground">
-                                {item.quantity} × {formatCurrencyWithLocale(item.unitPrice, selectedInvoice.currency)}
-                              </div>
-                            </div>
-                            <div className="font-medium">
-                              {formatCurrencyWithLocale(item.totalPrice, selectedInvoice.currency)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {(selectedInvoice.subtotal || selectedInvoice.tax) && (
-                    <div className="border-t border-border pt-4 space-y-2">
-                      {selectedInvoice.subtotal && (
-                        <div className="flex justify-between">
-                          <span>Subtotal</span>
-                          <span>{formatCurrencyWithLocale(selectedInvoice.subtotal, selectedInvoice.currency)}</span>
-                        </div>
-                      )}
-                      {selectedInvoice.tax && (
-                        <div className="flex justify-between">
-                          <span>Tax</span>
-                          <span>{formatCurrencyWithLocale(selectedInvoice.tax, selectedInvoice.currency)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg border-t border-border pt-2">
-                        <span>Total</span>
-                        <span>{formatCurrencyWithLocale(selectedInvoice.total, selectedInvoice.currency)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t border-border space-y-2">
-                    {selectedInvoice.confidence && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Extraction Confidence:</span>
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <div
-                              key={i}
-                              className={`w-3 h-3 rounded-full mr-1 ${
-                                i < Math.floor(selectedInvoice.confidence! * 5)
-                                  ? 'bg-green-500'
-                                  : 'bg-muted'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {Math.round(selectedInvoice.confidence * 100)}%
-                        </span>
-                      </div>
-                    )}
-                    
-                    {selectedInvoice.processingTime && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Processing Time:</span>
-                        <span className="text-sm font-medium text-primary">
-                          {selectedInvoice.processingTime}ms
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <InvoiceDetails
+                invoice={selectedInvoice}
+                onAgentSelect={handleAgentSelect}
+                onBack={() => setSelectedInvoice(null)}
+              />
             ) : (
               <InvoiceList
                 invoices={filteredInvoices}
@@ -693,7 +583,7 @@ export default function HomePage() {
               />
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
