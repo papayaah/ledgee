@@ -1,0 +1,52 @@
+{
+  "name": "Shaw AI - Invoice Extraction",
+  "short_name": "Shaw AI",
+  "description": "Offline-first invoice extraction webapp using Chrome's built-in AI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["productivity", "business", "finance"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "features": [
+    "Cross Platform",
+    "fast",
+    "simple"
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Upload Invoice",
+      "short_name": "Upload",
+      "description": "Upload and process new invoice",
+      "url": "/?action=upload",
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "any"
+        }
+      ]
+    },
+    {
+      "name": "View Invoices",
+      "short_name": "Invoices",
+      "description": "View all processed invoices",
+      "url": "/?action=view",
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "any"
+        }
+      ]
+    }
+  ]
+}
