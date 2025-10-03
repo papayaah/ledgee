@@ -12,6 +12,7 @@ import { DragDropFile, ProcessingStatus, DatabaseInvoice } from '@/types/invoice
 import { aiExtractor, checkChromeAIAvailability, ChromeAIStatus, describeImage } from '@/lib/ai-extraction';
 import { invoiceDb } from '@/lib/database';
 import ImageDescribeDropzone from '@/components/ImageDescribeDropzone';
+import AIPromptInput from '@/components/AIPromptInput';
 import { formatCurrencyWithLocale } from '@/lib/currency-utils';
 
 function formatMonthLabel(key: string) {
@@ -517,6 +518,13 @@ export default function HomePage() {
           </div>
 
         </div>
+
+        {/* AI Query Section */}
+        {invoices.length > 0 && (
+          <AIPromptInput 
+            disabled={!aiAvailable || processing.status === 'processing'}
+          />
+        )}
 
         {/* Invoice List Section */}
         {invoices.length > 0 && (

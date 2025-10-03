@@ -53,13 +53,17 @@ export class AIInvoiceQueryEngine {
       }
 
       this.languageModel = await LanguageModel.create({
-        systemPrompt: `You are a SQL query generator for invoice data analysis. 
-        Generate SQLite queries based on natural language questions about invoices.
-        Always return valid SQLite syntax.
-        
-        ${DATABASE_SCHEMA}`,
+        initialPrompts: [{
+          role: 'system',
+          content: `You are a SQL query generator for invoice data analysis. 
+          Generate SQLite queries based on natural language questions about invoices.
+          Always return valid SQLite syntax.
+          
+          ${DATABASE_SCHEMA}`
+        }],
         temperature: 0.1,
         topK: 1,
+        outputLanguage: 'en'
       });
 
       this.isInitialized = true;
