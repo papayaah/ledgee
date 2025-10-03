@@ -138,3 +138,23 @@ export interface InvoiceFilters {
   minAmount?: number;
   maxAmount?: number;
 }
+
+export interface InvoiceFilterState {
+  searchQuery: string;
+  storeName: string;
+  category: string;
+  city: string;
+  invoiceNumber: string;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  amountRange: {
+    min: string;
+    max: string;
+  };
+  paymentMethod: string;
+  agentName: string;
+  sortBy: 'date' | 'merchant' | 'total' | 'invoiceNumber';
+  sortOrder: 'asc' | 'desc';
+}

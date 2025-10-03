@@ -68,7 +68,7 @@ export default function InvoiceDetails({
             </div>
           </div>
 
-          {(invoice.agentName || invoice.terms || invoice.termsDays) && (
+          {(invoice.agentName || invoice.terms || invoice.termsDays || invoice.confidence !== undefined) && (
             <div className="text-sm text-muted-foreground space-y-1 mt-4">
               {invoice.agentName && (
                 <div>
@@ -87,6 +87,28 @@ export default function InvoiceDetails({
                   <span className="font-medium text-foreground">
                     {invoice.terms || `${invoice.termsDays} days`}
                   </span>
+                </div>
+              )}
+              {invoice.confidence !== undefined && (
+                <div className="flex items-center gap-2">
+                  <span>Confidence:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full mr-1 ${
+                            i < Math.floor(invoice.confidence! * 5)
+                              ? 'bg-green-500'
+                              : 'bg-muted'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs">
+                      {Math.round(invoice.confidence * 100)}%
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

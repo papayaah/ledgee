@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import HeaderClient from '@/components/HeaderClient'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -27,37 +28,7 @@ export default function RootLayout({
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full antialiased`}>
         <div className="min-h-full bg-background">
-          {/* Header */}
-          <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-16">
-                <div className="flex items-center space-x-3">
-                  <div className="text-2xl">🤖</div>
-                  <div className="flex flex-col">
-                    <h1 className="text-xl font-bold brand-gradient">
-                      Shaw AI
-                    </h1>
-                    <p className="text-xs text-muted-foreground -mt-1">
-                      Invoice Extraction
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                  <div className="hidden sm:flex items-center space-x-2 text-sm text-muted-foreground">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Offline Ready</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                      LanguageModel
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </header>
+          <HeaderClient />
 
           {/* Main content */}
           <main className="flex-1">

@@ -26,7 +26,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<ProcessingStatus>({ status: 'idle' });
   const [aiAvailable, setAiAvailable] = useState<boolean>(false);
-  const [aiStatus, setAiStatus] = useState<ChromeAIStatus | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<DatabaseInvoice | null>(null);
   const [describeLoading, setDescribeLoading] = useState(false);
   const [describeResult, setDescribeResult] = useState<string | null>(null);
@@ -34,6 +33,26 @@ export default function HomePage() {
   const [describeResponseTime, setDescribeResponseTime] = useState<number | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [lastProcessingTime, setLastProcessingTime] = useState<number | null>(null);
+  const [debugMode, setDebugMode] = useState<boolean>(false);
+
+  // Listen for debug mode changes from header
+  useEffect(() => {
+    const handleDebugModeChange = (event: CustomEvent) => {
+      setDebugMode(event.detail);
+    };
+
+    // Check localStorage for initial debug mode state
+    const stored = localStorage.getItem('debugMode');
+    if (stored !== null) {
+      setDebugMode(JSON.parse(stored));
+    }
+
+    window.addEventListener('debugModeChanged', handleDebugModeChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('debugModeChanged', handleDebugModeChange as EventListener);
+    };
+  }, []);
 
   // Calculate total amounts by currency
   const totalAmountsByCurrency = useMemo(() => {
@@ -140,7 +159,6 @@ export default function HomePage() {
         console.log('LanguageModel check result:', aiCheck);
         
         setAiAvailable(aiCheck.available);
-        setAiStatus(aiCheck);
         
         if (!aiCheck.available && aiCheck.instructions) {
           console.warn('LanguageModel setup instructions:', aiCheck.instructions);
@@ -162,10 +180,7 @@ export default function HomePage() {
     console.log('Files dropped, aiAvailable:', aiAvailable);
     
     if (!aiAvailable) {
-      const message = aiStatus
-        ? `${aiStatus.status}${aiStatus.instructions ? `\n\n${aiStatus.instructions}` : ''}`
-        : 'Chrome Prompt API is not available. Please use Chrome Canary with the required flags enabled.';
-      alert(message);
+      alert('Chrome Prompt API is not available. Please use Chrome Canary with the required flags enabled.');
       return;
     }
 
@@ -258,14 +273,11 @@ export default function HomePage() {
     setTimeout(() => {
       setProcessing({ status: 'idle' });
     }, 3000);
-  }, [aiAvailable, aiStatus]);
+  }, [aiAvailable]);
 
   const handleDescribeImage = useCallback(async (file: File) => {
     if (!aiAvailable) {
-      const message = aiStatus
-        ? `${aiStatus.status}${aiStatus.instructions ? `\n\n${aiStatus.instructions}` : ''}`
-        : 'Chrome Prompt API is not available. Please enable the required flags.';
-      alert(message);
+      alert('Chrome Prompt API is not available. Please enable the required flags and ensure LanguageModel is set up.');
       return;
     }
 
@@ -287,7 +299,7 @@ export default function HomePage() {
     } finally {
       setDescribeLoading(false);
     }
-  }, [aiAvailable, aiStatus]);
+  }, [aiAvailable]);
 
   const handleAgentSelect = useCallback((agentName: string) => {
     setSelectedAgent(agentName);
@@ -369,11 +381,13 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Demo Instructions */}
-        <DemoInstructions />
-
-        {/* AI Test Component for debugging */}
-        <AITestComponent />
+        {/* Debug Components - Only show when debug mode is enabled */}
+        {debugMode && (
+          <>
+            <DemoInstructions />
+            <AITestComponent />
+          </>
+        )}
 
         {/* Statistics */}
         {invoices && invoices.length > 0 && (
@@ -409,35 +423,86 @@ export default function HomePage() {
         )}
 
         {/* Upload Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Left column - Drop zone */}
-          <div className="space-y-6">
-            {/* Sample Images */}
-            <div className="bg-card border border-border rounded-lg p-6">
-              <SampleImages 
-                onImageSelect={async (file) => {
-                  // Convert single file to DragDropFile format
-                  const dragDropFile: DragDropFile = {
-                    file,
-                    preview: URL.createObjectURL(file),
-                    id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-                  };
-                  await handleFilesDropped([dragDropFile]);
-                }}
-                disabled={processing.status === 'processing' || !aiAvailable}
-              />
-              {processing.status === 'processing' && (
-                <div className="mt-3 text-center">
-                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    Processing sample image...
+        <div className="space-y-8 mb-8">
+          {/* Main Upload Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left column - Sample Images + Development Tools + Quick Image Description */}
+            <div className="space-y-6">
+              <div className="bg-card border border-border rounded-lg p-6">
+                <SampleImages 
+                  onImageSelect={async (file) => {
+                    // Convert single file to DragDropFile format
+                    const dragDropFile: DragDropFile = {
+                      file,
+                      preview: URL.createObjectURL(file),
+                      id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                    };
+                    await handleFilesDropped([dragDropFile]);
+                  }}
+                  disabled={processing.status === 'processing' || !aiAvailable}
+                />
+                {processing.status === 'processing' && (
+                  <div className="mt-3 text-center">
+                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      Processing sample image...
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Development Tools - Always visible */}
+              {invoices.length > 0 && (
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground">Development Tools</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Reset app to clean state</p>
+                    </div>
+                    <DeleteAllData 
+                      onDeleteAll={handleDeleteAllData}
+                      disabled={processing.status === 'processing'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Image Description - Only show when debug mode is enabled */}
+              {debugMode && (
+                <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold">Quick Image Description</h2>
+                    {describeLoading && <span className="text-sm text-muted-foreground">Processing…</span>}
+                  </div>
+                  <ImageDescribeDropzone onFileSelected={handleDescribeImage} disabled={describeLoading} />
+                  {describeResult && (
+                    <div className="space-y-2">
+                      <div className="bg-muted/50 border border-border rounded-md p-3 text-sm text-left whitespace-pre-wrap">
+                        {describeResult}
+                      </div>
+                      {describeResponseTime && (
+                        <div className="text-xs text-muted-foreground text-right">
+                          Response time: {describeResponseTime}ms
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {describeError && (
+                    <div className="text-sm text-red-600">
+                      {describeError}
+                    </div>
+                  )}
+                  {!describeLoading && !describeResult && !describeError && (
+                    <p className="text-xs text-muted-foreground">
+                      Need to sanity check a tricky image? Drop it here to see what the model can perceive before running the full invoice extraction.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
 
+            {/* Right column - Upload Invoices */}
             <div>
-              <h2 className="text-2xl font-bold mb-4">Upload Invoices</h2>
               <InvoiceDropzone
                 onFilesDropped={handleFilesDropped}
                 processing={processing}
@@ -451,54 +516,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Right column - Quick Image Description */}
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Quick Image Description</h2>
-                {describeLoading && <span className="text-sm text-muted-foreground">Processing…</span>}
-              </div>
-              <ImageDescribeDropzone onFileSelected={handleDescribeImage} disabled={describeLoading} />
-              {describeResult && (
-                <div className="space-y-2">
-                  <div className="bg-muted/50 border border-border rounded-md p-3 text-sm text-left whitespace-pre-wrap">
-                    {describeResult}
-                  </div>
-                  {describeResponseTime && (
-                    <div className="text-xs text-muted-foreground text-right">
-                      Response time: {describeResponseTime}ms
-                    </div>
-                  )}
-                </div>
-              )}
-              {describeError && (
-                <div className="text-sm text-red-600">
-                  {describeError}
-                </div>
-              )}
-              {!describeLoading && !describeResult && !describeError && (
-                <p className="text-xs text-muted-foreground">
-                  Need to sanity check a tricky image? Drop it here to see what the model can perceive before running the full invoice extraction.
-                </p>
-              )}
-            </div>
-
-            {/* Delete All Data Button */}
-            {invoices.length > 0 && (
-              <div className="bg-card border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Development Tools</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Reset app to clean state</p>
-                  </div>
-                  <DeleteAllData 
-                    onDeleteAll={handleDeleteAllData}
-                    disabled={processing.status === 'processing'}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Invoice List Section */}
