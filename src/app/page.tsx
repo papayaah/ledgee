@@ -13,6 +13,8 @@ import { aiExtractor, checkChromeAIAvailability, ChromeAIStatus, describeImage }
 import { invoiceDb } from '@/lib/database';
 import ImageDescribeDropzone from '@/components/ImageDescribeDropzone';
 import AIPromptInput from '@/components/AIPromptInput';
+import AIStatusIndicator from '@/components/AIStatusIndicator';
+import GoogleSheetsSync from '@/components/GoogleSheetsSync';
 import { formatCurrencyWithLocale } from '@/lib/currency-utils';
 
 function formatMonthLabel(key: string) {
@@ -382,6 +384,15 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* AI Status Indicator - Show when AI is not available */}
+        {!aiAvailable && (
+          <AIStatusIndicator 
+            onStatusChange={(status) => {
+              setAiAvailable(status.available);
+            }}
+          />
+        )}
+
         {/* Debug Components - Only show when debug mode is enabled */}
         {debugMode && (
           <>
@@ -523,6 +534,14 @@ export default function HomePage() {
         {invoices.length > 0 && (
           <AIPromptInput 
             disabled={!aiAvailable || processing.status === 'processing'}
+          />
+        )}
+
+        {/* Google Sheets Sync Section */}
+        {invoices.length > 0 && (
+          <GoogleSheetsSync 
+            invoices={invoices}
+            disabled={processing.status === 'processing'}
           />
         )}
 

@@ -77,9 +77,20 @@ export default function HeaderClient() {
             {/* Offline Ready Status - Now Functional */}
             <div className="hidden sm:flex items-center space-x-2 text-sm text-muted-foreground">
               <div className={`w-2 h-2 rounded-full ${
-                aiStatus.available ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                aiStatus.available 
+                  ? 'bg-green-500 animate-pulse' 
+                  : aiStatus.status.includes('downloading')
+                  ? 'bg-yellow-500 animate-pulse'
+                  : 'bg-red-500'
               }`}></div>
-              <span>{aiStatus.available ? 'Offline Ready' : 'Setup Required'}</span>
+              <span>
+                {aiStatus.available 
+                  ? 'Offline Ready' 
+                  : aiStatus.status.includes('downloading')
+                  ? 'Downloading AI Model...'
+                  : 'Setup Required'
+                }
+              </span>
             </div>
             
             {/* Language Model Status - Now Functional */}
@@ -90,6 +101,13 @@ export default function HeaderClient() {
                   : 'bg-red-100 text-red-700'
               }`}>
                 {aiStatus.languageModelAvailable ? 'LanguageModel ✓' : 'LanguageModel ✗'}
+              </span>
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                aiStatus.promptApiAvailable 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {aiStatus.promptApiAvailable ? 'Multimodal ✓' : 'Multimodal ⏳'}
               </span>
             </div>
 
