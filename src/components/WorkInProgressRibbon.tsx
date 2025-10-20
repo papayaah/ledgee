@@ -32,8 +32,8 @@ export default function WorkInProgressRibbon() {
           }}
         >
           <div className="flex flex-col items-center whitespace-nowrap">
-            <span className="text-[14px] leading-tight font-bold">ALPHA</span>
-            <span className="text-[10px] leading-tight font-medium">Still Making It Better</span>
+            <span className="text-[14px] leading-tight font-bold">ALPHA<span className="text-[9px] leading-none">v0.1</span></span>
+            <span className="text-[11px] leading-tight font-medium">Still Making It Better</span>
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import InvoiceList from '@/components/InvoiceList';
 import InvoiceFilter from '@/components/InvoiceFilter';
-import { DatabaseInvoice, InvoiceFilterState } from '@/types/invoice';
+import { DatabaseInvoice } from '@/types/invoice';
 import { invoiceDb, db } from '@/lib/database';
 import { formatCurrencyWithLocale } from '@/lib/currency-utils';
 import { useAIProvider } from '@/contexts/AIProviderContext';
@@ -30,7 +30,7 @@ export default function InvoicesPage() {
   const { pendingCount, processingCount } = useInvoiceQueueStore();
   
   // Use reactive query for invoices - automatically updates when IndexedDB changes
-  const invoices = useLiveQuery(
+  const invoicesRaw = useLiveQuery(
     async () => {
       const allInvoices = await db.invoices.toArray();
       // Sort by date descending, then by created date
@@ -41,7 +41,8 @@ export default function InvoicesPage() {
       });
     },
     []
-  ) || [];
+  );
+  const invoices = useMemo(() => invoicesRaw ?? [], [invoicesRaw]);
   
   const [loading, setLoading] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -193,7 +194,7 @@ export default function InvoicesPage() {
     setFilteredInvoices(filtered);
   }, []);
 
-  const handleFilterStateChange = useCallback((_filterState: InvoiceFilterState) => {
+  const handleFilterStateChange = useCallback((/* _filterState: InvoiceFilterState */) => {
     // Filter state change handled by InvoiceFilter component
   }, []);
 

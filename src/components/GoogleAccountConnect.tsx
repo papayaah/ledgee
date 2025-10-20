@@ -19,16 +19,10 @@ import { db } from '@/lib/database';
 
 interface GoogleAccountConnectProps {
   onConnectionChange?: (isConnected: boolean, hasSpreadsheet: boolean) => void;
-  // Removed: usePersonalMode - now always uses Google account
-  isGoogleConnected?: boolean;
-  hasSpreadsheet?: boolean;
 }
 
 export default function GoogleAccountConnect({ 
-  onConnectionChange, 
-  // Removed: usePersonalMode - now always uses Google account
-  isGoogleConnected: propIsGoogleConnected,
-  hasSpreadsheet: propHasSpreadsheet
+  onConnectionChange
 }: GoogleAccountConnectProps = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +35,7 @@ export default function GoogleAccountConnect({
   // Check connection status on mount
   useEffect(() => {
     checkConnectionStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle OAuth callback
@@ -327,6 +322,7 @@ export default function GoogleAccountConnect({
               )}
             </div>
             {userInfo?.picture && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img 
                 src={userInfo.picture} 
                 alt={userInfo.name}

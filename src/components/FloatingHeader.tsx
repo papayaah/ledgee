@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { MdAdd, MdDashboard, MdReceipt, MdAnalytics, MdSettings, MdMenu, MdClose, MdStore, MdPerson, MdStoreMallDirectory } from 'react-icons/md';
+import { MdAdd, MdDashboard, MdReceipt, MdAnalytics, MdSettings, MdClose, MdStore, MdPerson, MdStoreMallDirectory } from 'react-icons/md';
 import { useAIProvider } from '@/contexts/AIProviderContext';
 import { useAppStateStore } from '@/store/appStateStore';
 import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';

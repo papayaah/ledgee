@@ -3,19 +3,20 @@
 import React, { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/database';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MdSpeed, MdTimeline, MdBarChart, MdPieChart } from 'react-icons/md';
 
 export default function AIPerformanceChart() {
   const [viewMode, setViewMode] = useState<'bar' | 'pie'>('bar');
   
-  const invoices = useLiveQuery(
+  const invoicesRaw = useLiveQuery(
     async () => {
       const allInvoices = await db.invoices.toArray();
       return allInvoices.filter(inv => inv.aiExtractedFrom === 'image' && inv.aiResponseTime);
     },
     []
-  ) || [];
+  );
+  const invoices = useMemo(() => invoicesRaw ?? [], [invoicesRaw]);
 
   // Helper function to format milliseconds to seconds
   const formatTime = (ms: number): string => {

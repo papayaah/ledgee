@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import InvoiceDetails from '@/components/InvoiceDetails';
 import { DatabaseInvoice } from '@/types/invoice';
@@ -15,10 +15,12 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<DatabaseInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allInvoices, setAllInvoices] = useState<DatabaseInvoice[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
 
-  // Load invoice data
+  // Load invoice data and navigation
   useEffect(() => {
-    const loadInvoice = async () => {
+    const loadInvoiceAndNavigation = async () => {
       try {
         if (!invoiceId) {
           setError('Invalid invoice ID');
@@ -26,9 +28,16 @@ export default function InvoiceDetailPage() {
           return;
         }
 
+        // Load all invoices for navigation
+        const invoices = await invoiceDb.getAllInvoices();
+        setAllInvoices(invoices);
+
+        // Find current invoice and its index
         const invoiceData = await invoiceDb.getInvoice(invoiceId);
         if (invoiceData) {
           setInvoice(invoiceData);
+          const index = invoices.findIndex(inv => inv.id === invoiceId);
+          setCurrentIndex(index);
         } else {
           setError('Invoice not found');
         }
@@ -40,12 +49,49 @@ export default function InvoiceDetailPage() {
       }
     };
 
-    loadInvoice();
+    loadInvoiceAndNavigation();
   }, [invoiceId]);
 
   const handleBack = () => {
     router.back();
   };
+
+  // Navigation functions
+  const goToPrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      const prevInvoice = allInvoices[currentIndex - 1];
+      router.push(`/invoices/${prevInvoice.id}`);
+    }
+  }, [currentIndex, allInvoices, router]);
+
+  const goToNext = useCallback(() => {
+    if (currentIndex < allInvoices.length - 1) {
+      const nextInvoice = allInvoices[currentIndex + 1];
+      router.push(`/invoices/${nextInvoice.id}`);
+    }
+  }, [currentIndex, allInvoices, router]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goToPrevious();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goToPrevious, goToNext]);
+
+  // Navigation state
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < allInvoices.length - 1;
+  const previousInvoice = hasPrevious ? allInvoices[currentIndex - 1] : null;
+  const nextInvoice = hasNext ? allInvoices[currentIndex + 1] : null;
 
   // Removed: onAgentSelect usage (no longer a prop)
 
@@ -146,13 +192,23 @@ export default function InvoiceDetailPage() {
           <h1 className="text-2xl font-bold">Invoice Details</h1>
         </div>
 
-        {/* Invoice Details Component */}
-        <InvoiceDetails 
-          invoice={invoice}
-          onStatusChange={handleStatusChange}
-          onDelete={handleDelete}
-          onUpdate={(updatedInvoice) => setInvoice(updatedInvoice)}
-        />
+        {/* Invoice Details Component (consistent width up to 1920px) */}
+        <div className="w-full max-w-[1920px] mx-auto">
+          <InvoiceDetails 
+            invoice={invoice}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            onUpdate={(updatedInvoice) => setInvoice(updatedInvoice)}
+            navigation={{
+              hasPrevious,
+              hasNext,
+              previousInvoice,
+              nextInvoice,
+              onPrevious: goToPrevious,
+              onNext: goToNext
+            }}
+          />
+        </div>
       </div>
     </div>
   );

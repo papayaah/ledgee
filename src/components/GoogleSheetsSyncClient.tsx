@@ -54,14 +54,14 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
           return;
         }
         
-        const { client, mode } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
+        const { client /*, mode*/ } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
         setSheetsClient(client);
         // Removed setClientMode; we only track connected/needs_setup implicitly
         setIsInitialized(true);
         setIsAuthenticated(true);
         
-        // Update spreadsheet ID if connected
-        if (mode === 'connected' && client.getSpreadsheetUrl) {
+        // Update spreadsheet ID if available
+        if (client.getSpreadsheetUrl) {
           const url = client.getSpreadsheetUrl();
           const id = url.split('/d/')[1]?.split('/')[0];
           if (id) setSpreadsheetId(id);
@@ -117,7 +117,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
       setSyncStatus('Ledgee spreadsheet created successfully!');
       
       // Reinitialize the client
-      const { client, mode } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
+      const { client /*, mode*/ } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
       setSheetsClient(client);
       setIsAuthenticated(true);
       setNeedsSpreadsheet(false);

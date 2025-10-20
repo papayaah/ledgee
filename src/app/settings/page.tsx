@@ -10,8 +10,8 @@ import { invoiceDb } from '@/lib/database';
 import { backupSync } from '@/lib/backup-sync';
 import { useAIProvider } from '@/contexts/AIProviderContext';
 import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';
-import { MdSettings, MdAttachMoney, MdDeleteSweep, MdCloudSync, MdCloudOff, MdCloudDownload, MdSmartToy, MdCheckCircle, MdWarning, MdInfo, MdSpeed } from 'react-icons/md';
-import { FcGoogle } from 'react-icons/fc';
+import { MdSettings, MdAttachMoney, MdDeleteSweep, MdCloudSync, MdCloudDownload, MdSmartToy, MdCheckCircle, MdWarning, MdInfo, MdSpeed } from 'react-icons/md';
+// import { FcGoogle } from 'react-icons/fc';
 import { db } from '@/lib/database';
 
 export default function SettingsPage() {
@@ -22,18 +22,20 @@ export default function SettingsPage() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
-  const [hasSpreadsheet, setHasSpreadsheet] = useState(false);
+  // Track Google connection at runtime for UI only
+  // Removed runtime flags to avoid unused warnings; connection state is shown within GoogleAccountConnect
+  // removed unused setters
   const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey || '');
 
   // Fetch AI performance data
-  const aiInvoices = useLiveQuery(
+  const aiInvoicesRaw = useLiveQuery(
     async () => {
       const allInvoices = await db.invoices.toArray();
       return allInvoices.filter(inv => inv.aiExtractedFrom === 'image' && inv.aiResponseTime);
     },
     []
-  ) || [];
+  );
+  const aiInvoices = useMemo(() => aiInvoicesRaw ?? [], [aiInvoicesRaw]);
 
   // Calculate AI performance stats
   const aiStats = useMemo(() => {
@@ -81,11 +83,9 @@ export default function SettingsPage() {
         const { isGoogleConnected } = await import('@/lib/google-oauth');
         const { db } = await import('@/lib/database');
         const connected = await isGoogleConnected();
-        setIsGoogleConnected(connected);
         
         if (connected) {
-          const sheetIdSetting = await db.settings.get('ledgee_spreadsheet_id');
-          setHasSpreadsheet(!!sheetIdSetting?.value);
+          await db.settings.get('ledgee_spreadsheet_id');
         }
       } catch (error) {
         console.error('Failed to check status:', error);
@@ -242,15 +242,7 @@ export default function SettingsPage() {
         
         {/* Google Account Connection - with integrated mode toggle */}
         <div className="bg-gradient-to-br from-blue-50/80 to-purple-50/80 rounded-lg p-1">
-          <GoogleAccountConnect 
-            onConnectionChange={(connected, hasSheet) => {
-              setIsGoogleConnected(connected);
-              setHasSpreadsheet(hasSheet);
-            }}
-            // Removed: usePersonalMode - now always uses Google account
-            isGoogleConnected={isGoogleConnected}
-            hasSpreadsheet={hasSpreadsheet}
-          />
+          <GoogleAccountConnect />
         </div>
 
         {/* Currency & Reports Settings */}

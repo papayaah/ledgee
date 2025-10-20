@@ -22,25 +22,38 @@ import {
   MdClose,
   MdImage,
   MdSmartToy,
-  MdSpeed
+  MdSpeed,
+  MdChevronLeft,
+  MdChevronRight
 } from 'react-icons/md';
 import Zoom from 'react-medium-image-zoom';
 import 'react-medium-image-zoom/dist/styles.css';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
+interface NavigationProps {
+  hasPrevious: boolean;
+  hasNext: boolean;
+  previousInvoice: DatabaseInvoice | null;
+  nextInvoice: DatabaseInvoice | null;
+  onPrevious: () => void;
+  onNext: () => void;
+}
+
 interface InvoiceDetailsProps {
   invoice: DatabaseInvoice;
   onStatusChange: (newStatus: 'review' | 'approved') => void;
   onDelete: () => void;
   onUpdate?: (updatedInvoice: DatabaseInvoice) => void;
+  navigation?: NavigationProps;
 }
 
 function InvoiceDetailsComponent({ 
   invoice, 
   onStatusChange,
   onDelete,
-  onUpdate
+  onUpdate,
+  navigation
 }: InvoiceDetailsProps) {
   const { invoiceLayout, setInvoiceLayout } = useUserPreferencesStore();
   
@@ -80,7 +93,7 @@ function InvoiceDetailsComponent({
         storeName: invoice.storeName || ''
       });
     }
-  }, [invoice.id]); // Only depend on ID, not the whole invoice object
+  }, [invoice.id, invoice.merchantName, invoice.invoiceNumber, invoice.date, invoice.total, invoice.agentName, invoice.terms, invoice.merchantAddress, invoice.storeName, editingField, editingItemId]);
 
   // Save edited field
   const handleSaveField = async (fieldName: string) => {
@@ -550,9 +563,10 @@ function InvoiceDetailsComponent({
 
   // Invoice Image Component
   const InvoiceImage = () => (
-    <div className="h-full">
+    <div className="w-full h-full">
       {invoice.imageData ? (
         <Zoom>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
             src={invoice.imageData} 
             alt={`Invoice from ${invoice.merchantName}`}
@@ -569,7 +583,7 @@ function InvoiceDetailsComponent({
 
   // Invoice Data Component
   const InvoiceData = () => (
-    <div className="space-y-4">
+    <div className="w-full min-w-[600px] space-y-4">
       {/* Status and Actions Card */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between">
@@ -857,7 +871,7 @@ function InvoiceDetailsComponent({
       <div className="bg-card border border-border rounded-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Line Items</h3>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[500px]">
             <thead className="bg-muted">
               <tr>
                 <th className="text-center p-2 text-sm font-medium">Qty</th>
@@ -1056,19 +1070,19 @@ function InvoiceDetailsComponent({
     switch (invoiceLayout) {
       case 'left-right':
         return (
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className="w-full flex flex-col lg:flex-row gap-6">
             <div className="flex-1 min-w-0">
               <InvoiceData />
             </div>
-            <div className="lg:w-72 xl:w-80 flex-shrink-0">
+            <div className="w-full lg:w-80 xl:w-96 flex-shrink-0">
               <InvoiceImage />
             </div>
           </div>
         );
       case 'right-left':
         return (
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className="lg:w-72 xl:w-80 flex-shrink-0">
+          <div className="w-full flex flex-col lg:flex-row gap-6">
+            <div className="w-full lg:w-80 xl:w-96 flex-shrink-0">
               <InvoiceImage />
             </div>
             <div className="flex-1 min-w-0">
@@ -1078,14 +1092,14 @@ function InvoiceDetailsComponent({
         );
       case 'top-bottom':
         return (
-          <div className="space-y-6">
+          <div className="w-full space-y-6">
             <InvoiceImage />
             <InvoiceData />
           </div>
         );
       case 'bottom-top':
         return (
-          <div className="space-y-6">
+          <div className="w-full space-y-6">
             <InvoiceData />
             <InvoiceImage />
           </div>
@@ -1094,10 +1108,48 @@ function InvoiceDetailsComponent({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-[800px] space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Invoice Details</h2>
         <div className="flex items-center space-x-3">
+          {/* Navigation Buttons */}
+          {navigation && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={navigation.onPrevious}
+                disabled={!navigation.hasPrevious}
+                className="flex flex-col items-center space-y-1 px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                title={navigation.previousInvoice ? `${navigation.previousInvoice.merchantName} - ${navigation.previousInvoice.invoiceNumber}` : 'No previous invoice'}
+              >
+                <div className="flex items-center space-x-1">
+                  <MdChevronLeft className="w-4 h-4" />
+                  <span className="text-sm font-medium">Previous</span>
+                </div>
+                {navigation.previousInvoice && (
+                  <div className="text-xs text-muted-foreground text-center max-w-[100px] truncate">
+                    {navigation.previousInvoice.merchantName}
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={navigation.onNext}
+                disabled={!navigation.hasNext}
+                className="flex flex-col items-center space-y-1 px-3 py-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+                title={navigation.nextInvoice ? `${navigation.nextInvoice.merchantName} - ${navigation.nextInvoice.invoiceNumber}` : 'No next invoice'}
+              >
+                <div className="flex items-center space-x-1">
+                  <span className="text-sm font-medium">Next</span>
+                  <MdChevronRight className="w-4 h-4" />
+                </div>
+                {navigation.nextInvoice && (
+                  <div className="text-xs text-muted-foreground text-center max-w-[100px] truncate">
+                    {navigation.nextInvoice.merchantName}
+                  </div>
+                )}
+              </button>
+            </div>
+          )}
+          
           {/* Layout Toggle Button */}
           <button
             onClick={cycleLayout}

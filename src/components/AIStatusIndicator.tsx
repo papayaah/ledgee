@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChromeAIStatus } from '@/lib/ai-extraction';
 import { DatabaseInvoice } from '@/types/invoice';
-import InvoiceDetails from './InvoiceDetails';
+// import InvoiceDetails from './InvoiceDetails'; // Unused
 import { useAppStateStore } from '@/store/appStateStore';
 import { useAIProvider } from '@/contexts/AIProviderContext';
 import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';
@@ -13,14 +13,14 @@ import {
   MdRefresh, 
   MdError, 
   MdGetApp,
-  MdLightbulb,
-  MdWarning,
+  // MdLightbulb,
+  // MdWarning,
   MdSettings,
   MdPlayArrow,
   MdRestartAlt,
   MdCheckCircle as MdApprove,
-  MdPerson,
-  MdFilterList,
+  // MdPerson,
+  // MdFilterList,
   MdSearch
 } from 'react-icons/md';
 
@@ -121,9 +121,9 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
     languageModelAvailable: false,
   });
   const [isChecking, setIsChecking] = useState(false);
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  // const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  // const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [modelAvailability, setModelAvailability] = useState<ModelAvailability | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -140,7 +140,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
         setAiStatus(storeStatus);
         onStatusChange?.(storeStatus);
       }
-      setLastChecked(new Date());
+      // lastChecked removed
       
       // Check LanguageModel availability if available
       if ('LanguageModel' in window) {
@@ -164,7 +164,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
     } finally {
       setIsChecking(false);
     }
-  }, [onStatusChange]);
+  }, [onStatusChange, checkStoreAvailability, storeStatus]);
 
   // Initial check
   useEffect(() => {
@@ -204,7 +204,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
     }
 
     console.log('Starting session creation...');
-    setDownloadProgress(0);
+    // downloadProgress removed
     setDownloadError(null);
     setSessionCreationTriggered(true);
 
@@ -239,7 +239,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
         monitor(m: any) {
           m.addEventListener('downloadprogress', (e: any) => {
             const progress = Math.round(e.loaded * 100);
-            setDownloadProgress(progress);
+            // setDownloadProgress(progress);
             console.log(`AI Model Download Progress: ${progress}%`);
             
             if (modelNewlyDownloaded && e.loaded === 1) {
@@ -247,7 +247,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
               // and loaded into memory, so show the indeterminate state.
               console.log('Download complete, now extracting and loading...');
               setIsExtracting(true);
-              setDownloadProgress(100);
+              // setDownloadProgress(100);
             }
           });
         },
@@ -550,6 +550,7 @@ export default function AIStatusIndicator({ onStatusChange, onDemoStateChange }:
                   onClick={handleDemoClick}
                   className="w-full group relative overflow-hidden border-2 border-border hover:border-primary transition-all shadow-md hover:shadow-lg"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img 
                     src="/samples/invoice2.jpeg" 
                     alt="Sample Invoice"

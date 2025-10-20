@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DatabaseInvoice } from '@/types/invoice';
 import { useAIProvider } from '@/contexts/AIProviderContext';
 import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';
@@ -157,6 +157,7 @@ export default function DemoInstructions() {
               onClick={handleDemoClick}
               className="w-full group relative overflow-hidden rounded-lg border-2 border-blue-300 dark:border-blue-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all shadow-md hover:shadow-lg"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
                 src="/samples/7775149e-34c8-4c47-91a8-c569869036f7.jpeg" 
                 alt="Sample Invoice"

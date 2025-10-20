@@ -8,7 +8,7 @@ import { formatCurrencyWithLocale } from '@/lib/currency-utils';
 import { useAIProvider } from '@/contexts/AIProviderContext';
 import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';
 import AIPromptInput from '@/components/AIPromptInput';
-import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MdPerson, MdStoreMallDirectory, MdCalendarMonth, MdCalendarToday, MdStore } from 'react-icons/md';
 
 export default function HomePage() {
@@ -17,7 +17,7 @@ export default function HomePage() {
   const { isAvailable: chromeAIAvailable } = useAIAvailabilityStore();
   
   // Use reactive query for invoices - automatically updates when IndexedDB changes
-  const invoices = useLiveQuery(
+  const invoicesRaw = useLiveQuery(
     async () => {
       const allInvoices = await db.invoices.toArray();
       // Sort by date descending, then by created date
@@ -28,7 +28,8 @@ export default function HomePage() {
       });
     },
     []
-  ) || [];
+  );
+  const invoices = useMemo(() => invoicesRaw ?? [], [invoicesRaw]);
   
   const [loading, setLoading] = useState(true);
   const [hasCheckedForInvoices, setHasCheckedForInvoices] = useState(false);

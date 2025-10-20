@@ -327,7 +327,7 @@ export class GoogleSheetsOAuth {
       invoices.forEach(invoice => {
         const date = new Date(invoice.date);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+        // monthName unused
         
         if (!monthlyData[monthKey]) {
           monthlyData[monthKey] = [];
@@ -339,8 +339,7 @@ export class GoogleSheetsOAuth {
 
       // Create a sheet for each month
       for (const [monthKey, monthInvoices] of Object.entries(monthlyData)) {
-        const monthName = new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        const sheetName = monthName;
+        const sheetName = new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
         
         // Create the sheet
         await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}:batchUpdate`, {
@@ -562,7 +561,7 @@ export class GoogleSheetsOAuth {
       for (const block of blocks) {
         const startCol = block.startCol - 1; // zero-based
         const headerRow = block.startRow + 4 - 1; // zero-based index for header line
-        const tableStartRow = block.startRow + 6 - 1; // month label row
+        // tableStartRow unused
         const itemsStartRow = block.startRow + 7 - 1;
         const itemsEndRow = itemsStartRow + Math.max(1, block.items.length);
 

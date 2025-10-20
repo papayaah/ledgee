@@ -18,7 +18,7 @@ import 'react-medium-image-zoom/dist/styles.css';
 export default function AddInvoicePage() {
   const router = useRouter();
   const { useOnlineGemini, geminiApiKey } = useAIProvider();
-  const { queue, addToQueue, updateQueueItem, removeFromQueue, initialize } = useInvoiceQueueStore();
+  const { queue, addToQueue, removeFromQueue, initialize } = useInvoiceQueueStore();
   const { isAvailable: aiAvailable, checkAvailability } = useAIAvailabilityStore();
   
   const [loading, setLoading] = useState(true);
@@ -392,6 +392,7 @@ export default function AddInvoicePage() {
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="text-sm font-semibold mb-3">Invoice Image</h3>
                   <Zoom>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={currentInvoice.imageData}
                       alt="Invoice preview"
