@@ -47,10 +47,7 @@ export default function InvoiceDetailPage() {
     router.back();
   };
 
-  const handleAgentSelect = (agentName: string) => {
-    // Navigate to invoices page with agent filter
-    router.push(`/invoices?agent=${encodeURIComponent(agentName)}`);
-  };
+  // Removed: onAgentSelect usage (no longer a prop)
 
   const handleDelete = async () => {
     if (!invoice) return;
@@ -152,7 +149,6 @@ export default function InvoiceDetailPage() {
         {/* Invoice Details Component */}
         <InvoiceDetails 
           invoice={invoice}
-          onAgentSelect={handleAgentSelect}
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
           onUpdate={(updatedInvoice) => setInvoice(updatedInvoice)}

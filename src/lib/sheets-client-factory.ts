@@ -4,9 +4,7 @@
 import { GoogleSheetsOAuth } from './google-sheets-oauth';
 import { getValidTokens, isGoogleConnected } from './google-oauth';
 import { db } from './database';
-import { useUserPreferencesStore } from '@/store/userPreferencesStore';
-
-const SHARED_SPREADSHEET_ID = '1ym0xPhwPKtYUXQTLCB8brozgsa50SEjFlAUr46k_uSY';
+// Removed unused imports and constants related to old shared mode
 
 export interface SheetsClientInterface {
   initialize(): Promise<void>;

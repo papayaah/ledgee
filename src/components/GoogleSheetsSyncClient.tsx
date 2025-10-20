@@ -56,6 +56,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         
         const { client, mode } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
         setSheetsClient(client);
+        // Removed setClientMode; we only track connected/needs_setup implicitly
         setIsInitialized(true);
         setIsAuthenticated(true);
         
@@ -118,7 +119,6 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
       // Reinitialize the client
       const { client, mode } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
       setSheetsClient(client);
-      setClientMode(mode);
       setIsAuthenticated(true);
       setNeedsSpreadsheet(false);
       

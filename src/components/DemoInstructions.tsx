@@ -203,7 +203,6 @@ export default function DemoInstructions() {
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-border overflow-auto max-h-[800px] shadow-lg">
               <InvoiceDetails
                 invoice={DEMO_INVOICE}
-                onAgentSelect={() => {}}
                 onStatusChange={() => {}}
                 onDelete={() => {}}
               />
