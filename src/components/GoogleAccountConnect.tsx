@@ -19,16 +19,14 @@ import { db } from '@/lib/database';
 
 interface GoogleAccountConnectProps {
   onConnectionChange?: (isConnected: boolean, hasSpreadsheet: boolean) => void;
-  usePersonalMode?: boolean;
-  onPersonalModeChange?: (enabled: boolean) => void;
+  // Removed: usePersonalMode - now always uses Google account
   isGoogleConnected?: boolean;
   hasSpreadsheet?: boolean;
 }
 
 export default function GoogleAccountConnect({ 
   onConnectionChange, 
-  usePersonalMode = false,
-  onPersonalModeChange,
+  // Removed: usePersonalMode - now always uses Google account
   isGoogleConnected: propIsGoogleConnected,
   hasSpreadsheet: propHasSpreadsheet
 }: GoogleAccountConnectProps = {}) {
@@ -236,9 +234,7 @@ export default function GoogleAccountConnect({
         onConnectionChange(true, true);
       }
       
-      // Auto-enable personal Google account mode
-      const { useUserPreferencesStore } = await import('@/store/userPreferencesStore');
-      useUserPreferencesStore.getState().setUsePersonalGoogleAccount(true);
+      // Google account is now always used when connected
     } catch (error) {
       console.error('Error creating spreadsheet:', error);
       setMessage({ 
@@ -357,42 +353,15 @@ export default function GoogleAccountConnect({
             </ul>
           </div>
 
-          {/* Google Sheets Mode Toggle */}
+          {/* Google Integration Info */}
           {spreadsheetId && isConnected && (
             <div className="p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1">
-                  <h3 className="font-medium text-sm">Use Personal Google Account</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {usePersonalMode
-                      ? 'Using your Ledgee spreadsheet and Google Drive' 
-                      : 'Using shared spreadsheet'
-                    }
-                  </p>
-                </div>
-                <button
-                  onClick={() => onPersonalModeChange && onPersonalModeChange(!usePersonalMode)}
-                  className={`
-                    relative inline-flex h-8 w-14 items-center rounded-full transition-colors
-                    ${usePersonalMode ? 'bg-primary' : 'bg-muted-foreground'}
-                  `}
-                >
-                  <span
-                    className={`
-                      inline-block h-6 w-6 transform rounded-full bg-white transition-transform
-                      ${usePersonalMode ? 'translate-x-7' : 'translate-x-1'}
-                    `}
-                  />
-                </button>
+              <div className="flex items-start space-x-2">
+                <MdCheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800">
+                  Google integration enabled. Reports and backups use your Ledgee spreadsheet. Images saved to Google Drive (Ledgee/Invoices).
+                </p>
               </div>
-              {usePersonalMode && (
-                <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-start space-x-2">
-                  <MdCheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-800">
-                    Personal mode enabled. Reports and backups use your spreadsheet. Images saved to Google Drive (Ledgee/Invoices).
-                  </p>
-                </div>
-              )}
             </div>
           )}
           

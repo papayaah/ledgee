@@ -329,8 +329,8 @@ export default function AddInvoicePage() {
           </div>
         )}
 
-        {/* Queue Navigation */}
-        {queue.length > 0 && (
+        {/* Queue Navigation - Only show when more than 1 invoice */}
+        {queue.length > 1 && (
           <div className="flex items-center justify-center gap-4 bg-card border border-border rounded-lg p-4">
             <button
               onClick={handlePrevious}
@@ -444,6 +444,7 @@ export default function AddInvoicePage() {
     </div>
   );
 }
+
 
 
 

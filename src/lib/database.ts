@@ -260,8 +260,15 @@ export const invoiceDb = {
   },
 
   async clearAllData(): Promise<void> {
-    await db.invoices.clear();
-    console.log('Cleared all invoice data from IndexedDB');
+    // Clear all data except settings (which contains OAuth tokens and user preferences)
+    await Promise.all([
+      db.invoices.clear(),
+      db.queue.clear(),
+      db.stores.clear(),
+      db.merchants.clear(),
+      db.agents.clear()
+    ]);
+    console.log('Cleared all data from IndexedDB (invoices, queue, stores, merchants, agents)');
   },
 
   async clearAllInvoices(): Promise<void> {

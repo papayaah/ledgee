@@ -1,6 +1,6 @@
 'use client';
 
-import { GoogleSheetsClient } from './google-sheets-client';
+// import { GoogleSheetsClient } from './google-sheets-client'; // Removed - had secrets
 import { GoogleSheetsOAuth } from './google-sheets-oauth';
 import { getValidTokens, isGoogleConnected } from './google-oauth';
 import { db } from './database';
@@ -27,7 +27,7 @@ export interface SheetsClientInterface {
 export async function createSheetsClient(
   showCurrencySymbol: boolean = false,
   dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD' = 'MM/DD/YYYY'
-): Promise<{ client: SheetsClientInterface; mode: 'personal' | 'needs_setup' }> {
+): Promise<{ client: SheetsClientInterface; mode: 'connected' | 'needs_setup' }> {
   
   // Check if user is connected
   const connected = await isGoogleConnected();
@@ -45,7 +45,7 @@ export async function createSheetsClient(
   }
   
   try {
-    console.log('📊 Using personal Google Sheets (OAuth)');
+    console.log('📊 Using Google Sheets (OAuth)');
     const tokens = await getValidTokens();
     
     if (!tokens || !tokens.access_token) {
@@ -60,9 +60,9 @@ export async function createSheetsClient(
     );
     
     await client.initialize();
-    return { client, mode: 'personal' };
+    return { client, mode: 'connected' };
   } catch (error) {
-    console.error('Failed to initialize personal Google Sheets:', error);
+    console.error('Failed to initialize Google Sheets:', error);
     throw new Error('Failed to initialize Google Sheets. Please try reconnecting your Google account.');
   }
 }

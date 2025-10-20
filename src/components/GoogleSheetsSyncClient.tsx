@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DatabaseInvoice } from '@/types/invoice';
-import { GoogleSheetsClient } from '@/lib/google-sheets-client';
+// import { GoogleSheetsClient } from '@/lib/google-sheets-client'; // Removed - had secrets
 import { useUserPreferencesStore } from '@/store/userPreferencesStore';
 import { createSheetsClient, SheetsClientInterface, isGoogleSheetsReady } from '@/lib/sheets-client-factory';
 import { getValidTokens } from '@/lib/google-oauth';
@@ -16,7 +16,7 @@ interface GoogleSheetsSyncClientProps {
 
 export default function GoogleSheetsSyncClient({ invoices, disabled = false }: GoogleSheetsSyncClientProps) {
   const { showCurrencyInReports, reportDateFormat } = useUserPreferencesStore();
-  const [isExporting, setIsExporting] = useState(false);
+  // Removed unused: isExporting
   const [isCreatingSummary, setIsCreatingSummary] = useState(false);
   const [isCreatingMerchantSummary, setIsCreatingMerchantSummary] = useState(false);
   const [isCreatingMonthSummary, setIsCreatingMonthSummary] = useState(false);
@@ -29,7 +29,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [sheetsClient, setSheetsClient] = useState<SheetsClientInterface | null>(null);
-  const [clientMode, setClientMode] = useState<'personal' | 'needs_setup'>('needs_setup');
+  // Removed unused: clientMode
   const [isCreatingSpreadsheet, setIsCreatingSpreadsheet] = useState(false);
   const [needsConnection, setNeedsConnection] = useState(false);
   const [needsSpreadsheet, setNeedsSpreadsheet] = useState(false);
@@ -38,7 +38,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
   useEffect(() => {
     const initializeClient = async () => {
       try {
-        const { ready, needsConnection: needsConn, needsSpreadsheet: needsSheet } = await isGoogleSheetsReady();
+        const { needsConnection: needsConn, needsSpreadsheet: needsSheet } = await isGoogleSheetsReady();
         setNeedsConnection(needsConn);
         setNeedsSpreadsheet(needsSheet);
         
@@ -56,19 +56,18 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         
         const { client, mode } = await createSheetsClient(showCurrencyInReports, reportDateFormat);
         setSheetsClient(client);
-        setClientMode(mode);
         setIsInitialized(true);
         setIsAuthenticated(true);
         
-        // Update spreadsheet ID if using personal mode
-        if (mode === 'personal' && client.getSpreadsheetUrl) {
+        // Update spreadsheet ID if connected
+        if (mode === 'connected' && client.getSpreadsheetUrl) {
           const url = client.getSpreadsheetUrl();
           const id = url.split('/d/')[1]?.split('/')[0];
           if (id) setSpreadsheetId(id);
         }
         
-        setSyncStatus('Personal Google Sheets initialized');
-        console.log('Google Sheets client initialized in personal mode');
+        setSyncStatus('Google Sheets initialized');
+        console.log('Google Sheets client initialized');
         setTimeout(() => setSyncStatus(null), 3000);
       } catch (error) {
         console.error('Failed to initialize Google Sheets client:', error);
@@ -133,22 +132,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
     }
   };
 
-  const handleCSVExport = async () => {
-    setIsExporting(true);
-    try {
-      if (sheetsClient && 'exportToCSV' in sheetsClient) {
-        (sheetsClient as GoogleSheetsClient).exportToCSV(invoices);
-        setSyncStatus('CSV exported successfully');
-      } else {
-        setSyncStatus('CSV export not available in personal mode');
-      }
-    } catch (error) {
-      setSyncStatus('Export failed: ' + (error as Error).message);
-    } finally {
-      setIsExporting(false);
-      setTimeout(() => setSyncStatus(null), 3000);
-    }
-  };
+  // Removed unused: handleCSVExport
 
   const handleCreateSummary = async () => {
     if (!sheetsClient || !isAuthenticated) {
@@ -213,7 +197,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
           setSyncStatus('Failed to create month sheets');
         }
       } else {
-        setSyncStatus('Month sheets not available in personal mode yet');
+        setSyncStatus('Month sheets not available');
       }
     } catch (error) {
       setSyncStatus('Failed to create month sheets: ' + (error as Error).message);
@@ -232,15 +216,15 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
     setIsCreatingReceipt(true);
     setSyncStatus(null);
     try {
-      if ('createReceiptsSheet' in sheetsClient) {
-        const success = await (sheetsClient as GoogleSheetsClient).createReceiptsSheet(invoices);
+      if (sheetsClient.createReceiptsSheet) {
+        const success = await sheetsClient.createReceiptsSheet(invoices);
         if (success) {
           setSyncStatus('Counter Receipts sheet created successfully');
         } else {
           setSyncStatus('Failed to create Counter Receipts sheet');
         }
       } else {
-        setSyncStatus('Counter Receipts not available in personal mode yet');
+        setSyncStatus('Counter Receipts not available');
       }
     } catch (error) {
       setSyncStatus('Failed to create Counter Receipts sheet: ' + (error as Error).message);
@@ -358,17 +342,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
     }
   };
 
-  if (!isInitialized) {
-    return (
-      <div className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Google Sheets Integration</h3>
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing Google Sheets API...</p>
-        </div>
-      </div>
-    );
-  }
+  // Inline loading will be shown inside the card instead of swapping the whole content
 
   // Show connection required message
   if (needsConnection) {
@@ -432,13 +406,19 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
             Create sheets from your {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} in different formats
           </p>
         </div>
+        {!isInitialized && (
+          <div className="flex items-center text-sm text-muted-foreground">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2" />
+            Initializing...
+          </div>
+        )}
       </div>
 
       {/* Generate All Reports - Big Prominent Button */}
       <div className="mb-6">
         <button
           onClick={handleGenerateAllReports}
-          disabled={disabled || isGeneratingAll || invoices.length === 0 || !isAuthenticated}
+          disabled={disabled || isGeneratingAll || invoices.length === 0 || !isAuthenticated || !isInitialized}
           className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-3"
         >
           {isGeneratingAll && generatingProgress ? (
@@ -481,7 +461,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         <div className="flex items-start space-x-4">
           <button
             onClick={handleCreateSummary}
-            disabled={disabled || isCreatingSummary || invoices.length === 0 || !isAuthenticated}
+            disabled={disabled || isCreatingSummary || invoices.length === 0 || !isAuthenticated || !isInitialized}
             className="w-48 px-4 py-2.5 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
           >
             <MdSummarize size={18} />
@@ -497,7 +477,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         <div className="flex items-start space-x-4">
           <button
             onClick={handleCreateMerchantSummary}
-            disabled={disabled || isCreatingMerchantSummary || invoices.length === 0 || !isAuthenticated}
+            disabled={disabled || isCreatingMerchantSummary || invoices.length === 0 || !isAuthenticated || !isInitialized}
             className="w-48 px-4 py-2.5 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
           >
             <MdStore size={18} />
@@ -513,7 +493,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         <div className="flex items-start space-x-4">
           <button
             onClick={handleCreateMonthSummary}
-            disabled={disabled || isCreatingMonthSummary || invoices.length === 0 || !isAuthenticated}
+            disabled={disabled || isCreatingMonthSummary || invoices.length === 0 || !isAuthenticated || !isInitialized}
             className="w-48 px-4 py-2.5 bg-teal-500 text-white rounded-md hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
           >
             <MdCalendarMonth size={18} />
@@ -529,7 +509,7 @@ export default function GoogleSheetsSyncClient({ invoices, disabled = false }: G
         <div className="flex items-start space-x-4">
           <button
             onClick={handleCreateReceipt}
-            disabled={disabled || isCreatingReceipt || invoices.length === 0 || !isAuthenticated}
+            disabled={disabled || isCreatingReceipt || invoices.length === 0 || !isAuthenticated || !isInitialized}
             className="w-48 px-4 py-2.5 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
           >
             <MdReceipt size={18} />

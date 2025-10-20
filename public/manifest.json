@@ -12,9 +12,10 @@
   "categories": ["productivity", "business", "finance"],
   "icons": [
     {
-      "src": "/favicon.png",
-      "sizes": "any",
-      "type": "image/png"
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "features": [
@@ -31,8 +32,9 @@
       "url": "/?action=upload",
       "icons": [
         {
-          "src": "/favicon.png",
-          "sizes": "any"
+          "src": "/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
         }
       ]
     },
@@ -43,8 +45,9 @@
       "url": "/?action=view",
       "icons": [
         {
-          "src": "/favicon.png",
-          "sizes": "any"
+          "src": "/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
         }
       ]
     }

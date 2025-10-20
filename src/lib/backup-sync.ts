@@ -1,8 +1,8 @@
 import { DatabaseInvoice } from '@/types/invoice';
-import { GoogleSheetsClient } from './google-sheets-client';
-import { StoreRecord, MerchantRecord, AgentRecord } from './database';
+// import { GoogleSheetsClient } from './google-sheets-client'; // Removed - had secrets
+import { StoreRecord, MerchantRecord, AgentRecord, db } from './database';
+import { createSheetsClient } from './sheets-client-factory';
 
-const SPREADSHEET_ID = '1ym0xPhwPKtYUXQTLCB8brozgsa50SEjFlAUr46k_uSY';
 const BACKUP_SHEET_NAME = 'Backup';
 
 // Vertical layout - all entities in columns A onwards, separated by section headers
@@ -12,15 +12,34 @@ const BACKUP_SHEET_NAME = 'Backup';
 // Section 4: AGENTS (starts after merchants + 2 blank rows)
 
 class BackupSync {
-  private client: GoogleSheetsClient | null = null;
+  private client: any | null = null;
   private isInitialized = false;
+  private spreadsheetId: string | null = null;
+
+  private getSpreadsheetId(): string {
+    if (!this.spreadsheetId) {
+      throw new Error('Backup sync not initialized. Please initialize first.');
+    }
+    return this.spreadsheetId;
+  }
 
   async initialize(): Promise<boolean> {
     try {
-      this.client = new GoogleSheetsClient(SPREADSHEET_ID);
-      await this.client.initialize();
+      // Get user's personal spreadsheet ID
+      const sheetIdSetting = await db.settings.get('ledgee_spreadsheet_id');
+      if (!sheetIdSetting?.value) {
+        throw new Error('No personal spreadsheet found. Please create a Ledgee spreadsheet first.');
+      }
+      this.spreadsheetId = sheetIdSetting.value as string;
+      
+      // Use Google account for backup sync
+      const { client, mode } = await createSheetsClient();
+      if (mode === 'needs_setup') {
+        throw new Error('Google account not connected or spreadsheet not created. Please connect your Google account and create a spreadsheet first.');
+      }
+      this.client = client;
       this.isInitialized = true;
-      console.log('Backup sync initialized');
+      console.log('Backup sync initialized with Google account');
       return true;
     } catch (error) {
       console.error('Failed to initialize backup sync:', error);
@@ -86,7 +105,7 @@ class BackupSync {
 
       // Get data from Backup sheet
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!A:Z`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!A:Z`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -250,7 +269,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}!A:Z:append?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${sheetName}!A:Z:append?valueInputOption=RAW`,
       {
         method: 'POST',
         headers: {
@@ -273,7 +292,7 @@ class BackupSync {
 
     // Use USER_ENTERED to process formulas like =IMAGE()
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}!A:Z:append?valueInputOption=USER_ENTERED`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${sheetName}!A:Z:append?valueInputOption=USER_ENTERED`,
       {
         method: 'POST',
         headers: {
@@ -298,7 +317,7 @@ class BackupSync {
 
       // Get the sheet ID for the Backup sheet
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}?fields=sheets.properties`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -315,7 +334,7 @@ class BackupSync {
 
       // Add warning-only protection
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}:batchUpdate`,
         {
           method: 'POST',
           headers: {
@@ -409,7 +428,7 @@ class BackupSync {
 
       // Read from columns Z-AE
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z:AE`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z:AE`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -453,7 +472,7 @@ class BackupSync {
       if (!this.client) return false;
       
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z1:AE1`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z1:AE1`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -474,7 +493,7 @@ class BackupSync {
     const headers = ['ID', 'Name', 'Address', 'Is Default', 'Created At', 'Updated At'];
     
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z1:AE1?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z1:AE1?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -491,7 +510,7 @@ class BackupSync {
       if (!this.client) return null;
 
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z:Z`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z:Z`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -520,7 +539,7 @@ class BackupSync {
 
     // Get next row number
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z:Z`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z:Z`,
       {
         headers: {
           'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -533,7 +552,7 @@ class BackupSync {
 
     // Append to specific row
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z${nextRow}:AE${nextRow}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z${nextRow}:AE${nextRow}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -549,7 +568,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!Z${rowNumber}:AE${rowNumber}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!Z${rowNumber}:AE${rowNumber}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -621,7 +640,7 @@ class BackupSync {
 
       // Read from columns AG-AK
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG:AK`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG:AK`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -664,7 +683,7 @@ class BackupSync {
       if (!this.client) return false;
       
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG1:AK1`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG1:AK1`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -685,7 +704,7 @@ class BackupSync {
     const headers = ['ID', 'Name', 'Address', 'Created At', 'Updated At'];
     
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG1:AK1?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG1:AK1?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -708,7 +727,7 @@ class BackupSync {
       if (!this.client) return null;
 
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG:AG`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG:AG`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -736,7 +755,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG:AG`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG:AG`,
       {
         headers: {
           'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -750,7 +769,7 @@ class BackupSync {
     console.log('[BackupSync] Appending merchant to row:', nextRow);
 
     const putResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG${nextRow}:AK${nextRow}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG${nextRow}:AK${nextRow}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -772,7 +791,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AG${rowNumber}:AK${rowNumber}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AG${rowNumber}:AK${rowNumber}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -843,7 +862,7 @@ class BackupSync {
 
       // Read from columns AM-AP
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM:AP`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM:AP`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -885,7 +904,7 @@ class BackupSync {
       if (!this.client) return false;
       
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM1:AP1`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM1:AP1`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -906,7 +925,7 @@ class BackupSync {
     const headers = ['ID', 'Name', 'Created At', 'Updated At'];
     
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM1:AP1?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM1:AP1?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -923,7 +942,7 @@ class BackupSync {
       if (!this.client) return null;
 
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM:AM`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM:AM`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -951,7 +970,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM:AM`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM:AM`,
       {
         headers: {
           'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -963,7 +982,7 @@ class BackupSync {
     const nextRow = (data.values?.length || 0) + 1;
 
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM${nextRow}:AP${nextRow}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM${nextRow}:AP${nextRow}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -979,7 +998,7 @@ class BackupSync {
     if (!this.client) throw new Error('Client not initialized');
 
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!AM${rowNumber}:AP${rowNumber}?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!AM${rowNumber}:AP${rowNumber}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -1035,7 +1054,7 @@ class BackupSync {
       if (!this.client) return false;
       
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}!A1:Z1`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${sheetName}!A1:Z1`,
         {
           headers: {
             'Authorization': `Bearer ${(this.client as any).accessToken}`,
@@ -1066,7 +1085,7 @@ class BackupSync {
       // Clear the entire sheet by writing empty values to a very large range
       // This is simpler than using batchUpdate and doesn't require sheet ID
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!A1:ZZ10000:clear`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!A1:ZZ10000:clear`,
         {
           method: 'POST',
           headers: {
@@ -1209,7 +1228,7 @@ class BackupSync {
       // Write all data in one go
       console.log('[BackupSync] Writing all data to sheet...');
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${BACKUP_SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${this.getSpreadsheetId()}/values/${BACKUP_SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED`,
         {
           method: 'POST',
           headers: {

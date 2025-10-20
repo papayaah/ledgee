@@ -31,7 +31,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 interface InvoiceDetailsProps {
   invoice: DatabaseInvoice;
-  onAgentSelect: (agentName: string) => void;
   onStatusChange: (newStatus: 'review' | 'approved') => void;
   onDelete: () => void;
   onUpdate?: (updatedInvoice: DatabaseInvoice) => void;
@@ -39,7 +38,6 @@ interface InvoiceDetailsProps {
 
 function InvoiceDetailsComponent({ 
   invoice, 
-  onAgentSelect,
   onStatusChange,
   onDelete,
   onUpdate

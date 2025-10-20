@@ -4,6 +4,7 @@ import './globals.css'
 import FloatingHeader from '@/components/FloatingHeader'
 import QueueProcessor from '@/components/QueueProcessor'
 import AboutPullout from '@/components/AboutPullout'
+import WorkInProgressRibbon from '@/components/WorkInProgressRibbon'
 import { AIProviderProvider } from '@/contexts/AIProviderContext'
 import { Analytics } from '@vercel/analytics/next'
 
@@ -145,6 +146,9 @@ export default function RootLayout({
 
                   {/* About pullout */}
                   <AboutPullout />
+
+                  {/* Work in Progress Ribbon */}
+                  <WorkInProgressRibbon />
 
                 </div>
 

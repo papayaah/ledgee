@@ -70,7 +70,7 @@ export default function DeleteAllData({ onDeleteAll, disabled = false }: DeleteA
       
       {showConfirm && (
         <div className="absolute top-full left-0 mt-1 text-xs text-muted-foreground bg-background border border-border rounded p-2 shadow-lg z-10 max-w-xs">
-          This will permanently delete all invoices and reset the app to a clean state.
+          This will permanently delete all invoices, queue, stores, merchants, and agents. Settings and OAuth tokens will be preserved.
         </div>
       )}
     </div>

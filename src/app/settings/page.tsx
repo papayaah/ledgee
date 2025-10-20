@@ -3,6 +3,7 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUserPreferencesStore } from '@/store/userPreferencesStore';
+import { useInvoiceQueueStore } from '@/store/invoiceQueueStore';
 import DeleteAllData from '@/components/DeleteAllData';
 import GoogleAccountConnect from '@/components/GoogleAccountConnect';
 import { invoiceDb } from '@/lib/database';
@@ -14,7 +15,8 @@ import { FcGoogle } from 'react-icons/fc';
 import { db } from '@/lib/database';
 
 export default function SettingsPage() {
-  const { currency, setCurrency, showCurrencyInReports, setShowCurrencyInReports, reportDateFormat, setReportDateFormat, usePersonalGoogleAccount, setUsePersonalGoogleAccount } = useUserPreferencesStore();
+  const { currency, setCurrency, showCurrencyInReports, setShowCurrencyInReports, reportDateFormat, setReportDateFormat } = useUserPreferencesStore();
+  const { clearQueue } = useInvoiceQueueStore();
   const { useOnlineGemini, setUseOnlineGemini, geminiApiKey, setGeminiApiKey } = useAIProvider();
   const { isAvailable: aiAvailable, checkAvailability } = useAIAvailabilityStore();
   const [isRestoring, setIsRestoring] = useState(false);
@@ -95,16 +97,17 @@ export default function SettingsPage() {
 
   const handleDeleteAllData = useCallback(async () => {
     try {
-      await invoiceDb.clearAllInvoices();
+      await invoiceDb.clearAllData();
+      await clearQueue(); // Also clear the queue store state
       console.log('All data deleted successfully');
-      setMessage({ type: 'success', text: 'All data deleted successfully' });
+      setMessage({ type: 'success', text: 'All data deleted successfully - invoices, queue, stores, merchants, and agents cleared' });
       setTimeout(() => setMessage(null), 5000);
     } catch (error) {
       console.error('Failed to delete all data:', error);
       setMessage({ type: 'error', text: 'Failed to delete all data. Please try again.' });
       setTimeout(() => setMessage(null), 5000);
     }
-  }, []);
+  }, [clearQueue]);
 
   const handleSyncAllData = useCallback(async () => {
     setIsSyncing(true);
@@ -158,6 +161,20 @@ export default function SettingsPage() {
     setIsRestoring(true);
     setMessage(null);
     try {
+      // Check if user has a personal spreadsheet
+      const { db } = await import('@/lib/database');
+      const sheetIdSetting = await db.settings.get('ledgee_spreadsheet_id');
+      if (!sheetIdSetting?.value) {
+        throw new Error('No Ledgee spreadsheet found. Please create a Ledgee spreadsheet first in the Google Account section above.');
+      }
+
+      // Check if backup sheet exists
+      const { isGoogleSheetsReady } = await import('@/lib/sheets-client-factory');
+      const { ready } = await isGoogleSheetsReady();
+      if (!ready) {
+        throw new Error('Google Sheets not ready. Please ensure you are connected to Google and have created a Ledgee spreadsheet.');
+      }
+
       // Restore all entities
       const [restoredInvoices, restoredStores, restoredMerchants, restoredAgents] = await Promise.all([
         backupSync.restoreInvoices(),
@@ -167,7 +184,6 @@ export default function SettingsPage() {
       ]);
       
       // Import all entities directly to database
-      const { db } = await import('@/lib/database');
       
       // Restore stores
       for (const store of restoredStores) {
@@ -231,8 +247,7 @@ export default function SettingsPage() {
               setIsGoogleConnected(connected);
               setHasSpreadsheet(hasSheet);
             }}
-            usePersonalMode={usePersonalGoogleAccount}
-            onPersonalModeChange={setUsePersonalGoogleAccount}
+            // Removed: usePersonalMode - now always uses Google account
             isGoogleConnected={isGoogleConnected}
             hasSpreadsheet={hasSpreadsheet}
           />
@@ -638,47 +653,48 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Sync All Data to Backup */}
+          {/* Backup & Restore Section */}
           <div className="pt-4 border-t border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium">Sync All Data to Backup</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Manually sync all data (invoices, stores, merchants, agents) to Google Sheets backup
-                </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Sync All Data to Backup */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium">Sync All Data to Backup</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Export all data to Google Sheets backup
+                  </p>
+                </div>
+                <button
+                  onClick={handleSyncAllData}
+                  disabled={isSyncing}
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                >
+                  <MdCloudSync size={18} />
+                  <span className="text-sm font-medium">
+                    {isSyncing ? 'Syncing...' : 'Sync All Data'}
+                  </span>
+                </button>
               </div>
-              <button
-                onClick={handleSyncAllData}
-                disabled={isSyncing}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-              >
-                <MdCloudSync size={18} />
-                <span className="text-sm font-medium">
-                  {isSyncing ? 'Syncing...' : 'Sync All Data'}
-                </span>
-              </button>
-            </div>
-          </div>
 
-          {/* Restore from Backup */}
-          <div className="mt-4 pt-4 border-t border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium">Restore from Backup</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Import all data (invoices, stores, merchants, agents) from Google Sheets backup
-                </p>
+              {/* Restore from Backup */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium">Restore from Backup</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Import all data from Google Sheets backup
+                  </p>
+                </div>
+                <button
+                  onClick={handleRestoreFromBackup}
+                  disabled={isRestoring}
+                  className="w-full px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                >
+                  <MdCloudDownload size={18} />
+                  <span className="text-sm font-medium">
+                    {isRestoring ? 'Restoring...' : 'Restore from Backup'}
+                  </span>
+                </button>
               </div>
-              <button
-                onClick={handleRestoreFromBackup}
-                disabled={isRestoring}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-              >
-                <MdCloudDownload size={18} />
-                <span className="text-sm font-medium">
-                  {isRestoring ? 'Restoring...' : 'Restore from Backup'}
-                </span>
-              </button>
             </div>
           </div>
 

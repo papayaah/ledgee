@@ -16,8 +16,7 @@ interface UserPreferencesState {
   setShowCurrencyInReports: (enabled: boolean) => void;
   reportDateFormat: DateFormat;
   setReportDateFormat: (format: DateFormat) => void;
-  usePersonalGoogleAccount: boolean;
-  setUsePersonalGoogleAccount: (enabled: boolean) => void;
+  // Removed: usePersonalGoogleAccount - now always uses Google account
 }
 
 export const useUserPreferencesStore = create<UserPreferencesState>()(
@@ -33,8 +32,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
       setShowCurrencyInReports: (enabled) => set({ showCurrencyInReports: enabled }),
       reportDateFormat: 'MM/DD/YYYY', // Default to US format
       setReportDateFormat: (format) => set({ reportDateFormat: format }),
-      usePersonalGoogleAccount: true, // Use personal account by default when available
-      setUsePersonalGoogleAccount: (enabled) => set({ usePersonalGoogleAccount: enabled }),
+      // Removed: usePersonalGoogleAccount - now always uses Google account
     }),
     {
       name: 'ledgee-user-preferences',
