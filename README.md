@@ -1,6 +1,6 @@
-# Shaw AI - Invoice Extraction
+# Ledgee - Invoice Extraction
 
-Shaw AI is an offline-first web application that automatically extracts structured data from invoice images using Chrome's built-in LanguageModel API. Simply drag and drop your invoice images, and Shaw AI will extract merchant information, line items, totals, and other important details.
+Ledgee is an offline-first web application that automatically extracts structured data from invoice images using Chrome's built-in LanguageModel API. Simply drag and drop your invoice images, and Ledgee will extract merchant information, line items, totals, and other important details.
 
 ## Features
 
@@ -13,7 +13,7 @@ Shaw AI is an offline-first web application that automatically extracts structur
 
 ## Prerequisites
 
-To use Shaw AI, you need:
+To use Ledgee, you need:
 
 1. **Chrome Canary** browser (required for LanguageModel features)
 2. Enable the Chrome LanguageModel flag: `chrome://flags/#prompt-api-for-gemini-nano`
@@ -25,7 +25,7 @@ To use Shaw AI, you need:
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd shawai
+cd ledgee
 ```
 
 2. Install dependencies:
@@ -44,13 +44,13 @@ npm run dev
 
 1. **Check LanguageModel Status**: Ensure the green indicator shows "Chrome LanguageModel is ready"
 2. **Upload Invoices**: Drag and drop invoice images (JPG, PNG, WebP) onto the upload area
-3. **Automatic Extraction**: Shaw AI will automatically extract and structure the invoice data
+3. **Automatic Extraction**: Ledgee will automatically extract and structure the invoice data
 4. **Review Results**: View extracted invoices in the list with confidence scores
 5. **Manage Data**: Click on invoices to view details or delete them
 
 ## Supported Invoice Data
 
-Shaw AI extracts:
+Ledgee extracts:
 
 - **Merchant Information**: Name, address, contact details
 - **Invoice Details**: Invoice number, date, time
@@ -78,6 +78,74 @@ Shaw AI extracts:
 5. Restart Chrome Canary
 6. Visit `chrome://components/` and update "Optimization Guide On Device Model"
 
+### Testing Chrome AI in Console:
+
+You can test the built-in Chrome AI directly in the browser console:
+
+```javascript
+// Check if Chrome AI is available
+if ('LanguageModel' in window) {
+  console.log('✅ Chrome AI is available!');
+  
+  // Create a session and chat
+  (async () => {
+    // Check availability first
+    const availability = await window.LanguageModel.availability();
+    console.log('Availability:', availability);
+    
+    if (availability === 'available') {
+      const session = await window.LanguageModel.create();
+      console.log('Session created!');
+      
+      // Ask a question
+      const response = await session.prompt('Hello! Tell me a joke about programming.');
+      console.log('AI Response:', response);
+      
+      // Continue the conversation
+      const response2 = await session.prompt('Can you explain that joke?');
+      console.log('AI Response 2:', response2);
+      
+      // Cleanup
+      session.destroy();
+    } else {
+      console.log('Status:', availability);
+    }
+  })();
+} else {
+  console.log('❌ Chrome AI not available. Enable flags and restart Chrome Canary.');
+}
+```
+
+**Quick test (one-liner):**
+```javascript
+// Simple test
+(async () => { const s = await window.LanguageModel.create(); console.log(await s.prompt('Hello! What can you do?')); s.destroy(); })();
+```
+
+**Check AI availability:**
+```javascript
+// Check if model is ready
+(async () => {
+  const availability = await window.LanguageModel.availability();
+  console.log('Status:', availability); // "available", "downloadable", "downloading", or "unavailable"
+})();
+```
+
+**Interactive chat example:**
+```javascript
+// Create a session you can reuse
+let chatSession;
+(async () => {
+  chatSession = await window.LanguageModel.create();
+  console.log('Chat session ready! Use: await chatSession.prompt("your question")');
+})();
+
+// Then you can chat:
+// await chatSession.prompt('What is 2+2?')
+// await chatSession.prompt('Tell me more about that')
+// When done: chatSession.destroy()
+```
+
 ### Troubleshooting LanguageModel Issues:
 
 - **"Chrome LanguageModel not available"**: Ensure you're using Chrome Canary with flags enabled
@@ -87,7 +155,7 @@ Shaw AI extracts:
 ## Project Structure
 
 ```
-shawai/
+ledgee/
 ├── src/
 │   ├── app/                 # Next.js App Router pages
 │   │   ├── layout.tsx       # Root layout
@@ -123,7 +191,7 @@ The app requires no environment variables as it runs completely client-side.
 
 ## Database
 
-Shaw AI uses SQLite via WebAssembly for local storage:
+Ledgee uses SQLite via WebAssembly for local storage:
 
 - **Invoices Table**: Stores invoice metadata and totals
 - **Invoice Items Table**: Stores individual line items

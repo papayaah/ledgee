@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { aiJSONQueryEngine } from '@/lib/ai-json-query';
+import { useAIProvider } from '@/contexts/AIProviderContext';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useUserPreferencesStore } from '@/store/userPreferencesStore';
 
 interface AIQueryResult {
   success: boolean;
@@ -16,6 +20,7 @@ interface AIPromptInputProps {
 }
 
 export default function AIPromptInput({ onQueryResult, disabled = false }: AIPromptInputProps) {
+  const { useOnlineGemini, geminiApiKey } = useAIProvider();
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AIQueryResult | null>(null);
@@ -23,6 +28,12 @@ export default function AIPromptInput({ onQueryResult, disabled = false }: AIPro
 
   const [exampleQueries, setExampleQueries] = useState<string[]>([]);
   const [examplesLoading, setExamplesLoading] = useState(true);
+  const { currency } = useUserPreferencesStore();
+
+  // Update AI provider when toggle changes
+  useEffect(() => {
+    aiJSONQueryEngine.setProvider(useOnlineGemini, geminiApiKey);
+  }, [useOnlineGemini, geminiApiKey]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +66,46 @@ export default function AIPromptInput({ onQueryResult, disabled = false }: AIPro
   const clearResult = useCallback(() => {
     setResult(null);
     setError(null);
+  }, []);
+
+  interface TableView { columns: string[]; rows: Record<string, any>[] }
+  // Derive a table-friendly view of arbitrary JSON arrays
+  const tableView = useMemo<TableView | null>(() => {
+    if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) return null;
+    const rows: Record<string, any>[] = result.data.map((row: any) => (typeof row === 'object' && row !== null ? row : { value: row }));
+    const columns: string[] = Array.from(
+      rows.reduce((set: Set<string>, row: Record<string, any>) => {
+        Object.keys(row).forEach((k) => set.add(k));
+        return set;
+      }, new Set<string>())
+    );
+    return { columns, rows };
+  }, [result]);
+
+  // Humanize helpers
+  const humanizeKey = useCallback((key: string): string => {
+    if (!key) return '';
+    // replace underscores/hyphens with space
+    let s = key.replace(/[_-]+/g, ' ');
+    // insert spaces before capitals in camelCase
+    s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    // capitalize first letter of each word
+    s = s.replace(/\b\w/g, (m) => m.toUpperCase());
+    return s.trim();
+  }, []);
+
+  const formatCurrency = useCallback((value: any) => {
+    const n = Number(value);
+    if (!isFinite(n)) return String(value);
+    const locale = currency === 'USD' ? 'en-US' : 'en-PH';
+    const code = currency === 'USD' ? 'USD' : 'PHP';
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: code, maximumFractionDigits: 2 }).format(n);
+  }, [currency]);
+
+  const formatNumber = useCallback((value: any) => {
+    const n = Number(value);
+    if (!isFinite(n)) return String(value ?? '');
+    return new Intl.NumberFormat('en-US').format(n);
   }, []);
 
   // Load example queries on component mount
@@ -156,18 +207,53 @@ export default function AIPromptInput({ onQueryResult, disabled = false }: AIPro
             </div>
 
             {result.success && result.answer && (
-              <div className="bg-muted/50 border border-border rounded-md p-3 text-sm">
-                <p className="whitespace-pre-wrap">{result.answer}</p>
+              <div className="prose prose-sm max-w-none bg-muted/50 border border-border rounded-md p-3">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result.answer}
+                </ReactMarkdown>
               </div>
             )}
 
-            {result.success && result.data && result.data.length > 0 && (
+            {result.success && result.data && result.data.length > 0 && tableView && (
               <div className="mt-3">
                 <p className="text-sm font-medium mb-2">Data:</p>
-                <div className="bg-muted/30 border border-border rounded-md p-3 text-xs overflow-x-auto">
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(result.data, null, 2)}
-                  </pre>
+                <div className="bg-muted/30 border border-border rounded-md p-3 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left">
+                        {tableView.columns.map((col) => (
+                          <th key={col} className="py-2 px-2 font-semibold border-b border-border">
+                            {humanizeKey(col)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableView.rows.map((row, idx) => (
+                        <tr key={idx} className="odd:bg-muted/20">
+                          {tableView.columns.map((col) => {
+                            const value = row[col];
+                            let display: string = '';
+                            const colLower = String(col).toLowerCase();
+                            if (colLower.includes('amount') || colLower.includes('total') || colLower.includes('price')) {
+                              display = formatCurrency(value);
+                            } else if (typeof value === 'number') {
+                              display = formatNumber(value);
+                            } else if (typeof value === 'object' && value !== null) {
+                              display = JSON.stringify(value);
+                            } else {
+                              display = String(value ?? '');
+                            }
+                            return (
+                              <td key={col} className="py-2 px-2 align-top">
+                                {display}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

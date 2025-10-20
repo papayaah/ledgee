@@ -1,4 +1,6 @@
 import { InvoiceExtractionResult, Invoice, InvoiceItem } from '@/types/invoice';
+import { GeminiAPI } from './gemini-api';
+import { storeDb, merchantDb, agentDb } from './database';
 
 const MULTIMODAL_EXPECTED_INPUTS = [
   { type: 'text', languages: ['en'] },
@@ -12,6 +14,7 @@ const MULTIMODAL_EXPECTED_OUTPUTS = [
 const INVOICE_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
+    storeName: { type: ['string', 'null'] },
     merchantName: { type: ['string', 'null'] },
     merchantAddress: {
       type: ['object', 'null'],
@@ -60,126 +63,67 @@ const INVOICE_RESPONSE_SCHEMA = {
   additionalProperties: true,
 } as const;
 
-const PROMPT_TIMEOUT_MS = 45_000;
-const AGENT_PROMPT_TIMEOUT_MS = 15_000;
+const PROMPT_TIMEOUT_MS = 15_000; // Reduced from 45s to 15s
+const AGENT_PROMPT_TIMEOUT_MS = 5_000; // Reduced from 15s to 5s
 
-const EXTRACTION_SYSTEM_PROMPT = `You are an expert invoice data extraction AI. Your task is to analyze invoice images and extract structured data with high accuracy.
+const EXTRACTION_SYSTEM_PROMPT = `Extract invoice data as JSON. Key rules:
 
-Extract the following information from invoices:
-- Merchant name and address
-- Invoice number and date
-- Terms and agent information (look for "TERMS/AGENT" fields)
-- Individual line items with quantities, prices
-- Subtotal, tax, and total amounts
-- Currency (look for currency symbols like $, €, £, ¥, ₱, or currency codes like USD, EUR, GBP, JPY, PHP)
-- Payment method if visible
-- Contact information (phone, email, website)
+1. Store: Extract the store/business name (invoice issuer, usually at top)
+2. Merchant: Look for "SOLD TO" (customer name, not invoice issuer)
+3. Terms/Agent: IF found, extract from "TERMS/AGENT: X DAYS (mi)" format. Use null if NOT present.
+4. Items: Only include non-crossed-out items with exact quantities
+5. Totals: Use handwritten totals over calculated ones
+6. Currency: Detect from symbols (₱=PHP, $=USD, etc.)
 
-Return your response as valid JSON in this exact format:
+Return JSON only:
 {
+  "storeName": "string",
   "merchantName": "string",
-  "merchantAddress": {
-    "street": "string",
-    "city": "string",
-    "state": "string",
-    "zipCode": "string",
-    "country": "string"
-  },
-  "invoiceNumber": "string",
+  "merchantAddress": {"street": "string", "city": "string", "state": "string", "zipCode": "string", "country": "string"},
+  "invoiceNumber": "string", 
   "date": "YYYY-MM-DD",
-  "time": "HH:MM",
-  "agentName": "string",
-  "terms": "string",
-  "termsDays": number,
-  "items": [
-    {
-      "id": "string",
-      "name": "string",
-      "description": "string",
-      "quantity": number,
-      "unitPrice": number,
-      "totalPrice": number,
-      "category": "string"
-    }
-  ],
+  "agentName": null,
+  "terms": null,
+  "termsDays": null,
+  "items": [{"id": "item_1", "name": "string", "quantity": number, "unitPrice": number, "totalPrice": number}],
   "subtotal": number,
-  "tax": number,
+  "tax": number, 
   "total": number,
   "currency": "string",
-  "paymentMethod": "string",
-  "phoneNumber": "string",
-  "email": "string",
-  "website": "string",
   "confidence": number
 }
 
-CRITICAL RULES FOR ACCURATE EXTRACTION:
-
-1. **Terms and Agent Parsing**: Look for "TERMS/AGENT" fields. Extract:
-   - terms: The full terms text (e.g., "120 DAYS")
-   - termsDays: The numeric value (e.g., 120)
-   - agentName: The agent name (may be in parentheses or just after the terms)
-   - CRITICAL: Look for text like "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD" and extract:
-     * terms: "120 DAYS"
-     * termsDays: 120
-     * agentName: "ROGER" or "EDWARD" (the name after the terms)
-   - Do NOT confuse the signature name with the agent name - agent is in the TERMS/AGENT field, signature is at the bottom
-
-2. **Total Amount Validation**: 
-   - Look for handwritten totals (often in red ink or highlighted)
-   - Calculate the sum of all item totalPrice values
-   - If the calculated sum doesn't match the handwritten total, use the handwritten total and note the discrepancy
-   - The handwritten total takes precedence over calculated totals
-
-3. **Item Quantity Handling**:
-   - Pay attention to crossed-out items (single horizontal line through quantity) - these should be excluded
-   - Pay attention to circled items - these are the actual quantities to use
-   - Only include items that are NOT crossed out or are clearly marked as valid
-   - CRITICAL: Read the exact quantity numbers as written in the QUANTITY column
-   - If an item shows "50" in the quantity column, extract quantity as 50, not 1
-   - Double-check that quantity × unitPrice = totalPrice for each item
-
-4. **Address Accuracy**:
-   - Extract the exact address as written (e.g., "QUEZON CITY" not "BUREON CITY")
-   - Be precise with location names
-
-5. **General Rules**:
-   - Always return valid JSON
-   - Use null for missing values
-   - Generate unique IDs for items using format "item_1", "item_2", etc.
-   - Confidence should be 0-1 based on text clarity and completeness
-   - Parse dates to ISO format (YYYY-MM-DD)
-   - Extract prices as numbers without currency symbols
-   - If multiple items have same name, treat as separate items
-   - Include tax and subtotal if clearly labeled
-   - For unclear text, use your best interpretation but lower confidence
-   - IMPORTANT: Always detect and return the correct currency code based on currency symbols or text in the invoice
-   - If no currency is clearly indicated, default to PHP but note this in the confidence score
-   - Always include at least merchantName and total if visible
-
-6. **Quality Checks**:
-   - Verify that the extracted total matches the handwritten total
-   - Ensure quantities match what's actually marked as valid (not crossed out)
-   - Double-check agent name extraction from the correct field
-   - Validate that all monetary values are reasonable
-
-EXAMPLE: For "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD":
-- terms: "120 DAYS"
-- termsDays: 120
-- agentName: "ROGER" or "EDWARD"
-
-For items with quantity "50" in the QUANTITY column:
-- quantity: 50 (not 1)
-- If unitPrice is 38 and quantity is 50, then totalPrice should be 1900`;
+CRITICAL: Only extract data ACTUALLY present. Use null for missing values. Numbers only (no currency symbols).`;
 
 class AIInvoiceExtractor {
   private languageModel: any = null;
+  private geminiAPI: GeminiAPI | null = null;
   private isInitialized = false;
+  private useOnlineGemini = false;
+
+  setProvider(useOnlineGemini: boolean, apiKey?: string) {
+    this.useOnlineGemini = useOnlineGemini;
+    this.isInitialized = false; // Reset initialization when switching providers
+    
+    if (useOnlineGemini && apiKey) {
+      this.geminiAPI = new GeminiAPI(apiKey);
+    } else {
+      this.geminiAPI = null;
+    }
+  }
 
   async initialize(): Promise<boolean> {
     if (this.isInitialized) return true;
 
     try {
+      if (this.useOnlineGemini) {
+        // For online Gemini, we just need the API key
+        if (!this.geminiAPI) {
+          throw new Error('Gemini API not initialized. Please provide API key.');
+        }
+        this.isInitialized = true;
+        return true;
+      }
       // Check if LanguageModel is available
       if (!('LanguageModel' in window)) {
         console.warn('LanguageModel not available');
@@ -214,39 +158,131 @@ class AIInvoiceExtractor {
 
     try {
       console.time('invoice-extraction-total');
-      console.log('[ShawAI] Starting invoice extraction for', {
+      console.log('[Ledgee] Starting invoice extraction for', {
         name: imageFile.name,
         size: imageFile.size,
         type: imageFile.type,
       });
 
       const { aiResponse, rawContext, agentHint } = await this.extractInvoiceData(imageFile);
-      console.log('Raw AI Response:', aiResponse);
+      console.log('📤 [Ledgee] Raw AI Response received from extraction');
 
+      console.log('🔄 [Ledgee] Starting to parse AI response...');
       const invoiceData = await this.parseAIResponse(aiResponse);
+      console.log('✅ [Ledgee] Invoice data after parsing:', invoiceData);
       if (!invoiceData.agentName && agentHint) {
-        console.log('[ShawAI] Applying agent hint from follow-up prompt:', agentHint);
+        console.log('[Ledgee] Applying agent hint from follow-up prompt:', agentHint);
         invoiceData.agentName = agentHint;
       }
       const invoiceId = this.generateInvoiceId();
+      const imageDataUrl = await this.createImageUrl(imageFile);
 
+      // Associate merchant - find or create merchant record
+      let merchantId: string | undefined;
+      if (invoiceData.merchantName) {
+        try {
+          const merchantAddress = invoiceData.merchantAddress 
+            ? [
+                invoiceData.merchantAddress.street,
+                invoiceData.merchantAddress.city,
+                invoiceData.merchantAddress.state,
+                invoiceData.merchantAddress.zipCode,
+                invoiceData.merchantAddress.country
+              ].filter(Boolean).join(', ')
+            : '';
+          
+          const merchant = await merchantDb.findOrCreate(
+            invoiceData.merchantName,
+            merchantAddress
+          );
+          merchantId = merchant.id;
+          console.log('🏢 [Ledgee] Associated with merchant:', { id: merchantId, name: merchant.name });
+        } catch (error) {
+          console.error('❌ [Ledgee] Failed to associate merchant:', error);
+        }
+      }
+
+      // Handle store name - prioritize AI-extracted store, create if new, fallback to default
+      let storeName: string | undefined;
+      if (invoiceData.storeName) {
+        // AI found a store name - use it
+        storeName = invoiceData.storeName;
+        console.log('🏪 [Ledgee] Using AI-extracted store name:', storeName);
+        
+        // Check if this store exists, create if it doesn't
+        try {
+          const existingStores = await storeDb.list();
+          const storeExists = existingStores.some(store => 
+            store.name.toLowerCase() === storeName!.toLowerCase()
+          );
+          
+          if (!storeExists && storeName) {
+            console.log('🏪 [Ledgee] Creating new store:', storeName);
+            await storeDb.create({
+              name: storeName,
+              address: ''
+            });
+          }
+        } catch (error) {
+          console.error('❌ [Ledgee] Failed to create/find store:', error);
+        }
+      } else {
+        // No store found in AI extraction - use default store
+        try {
+          const defaultStore = await storeDb.getDefault();
+          if (defaultStore) {
+            storeName = defaultStore.name;
+            console.log('🏪 [Ledgee] No store found in invoice, using default store:', storeName);
+          } else {
+            console.warn('⚠️ [Ledgee] No store found in invoice and no default store available');
+          }
+        } catch (error) {
+          console.error('❌ [Ledgee] Failed to get default store:', error);
+        }
+      }
+
+      // Associate agent - find or create agent record
+      let agentId: string | undefined;
+      if (invoiceData.agentName) {
+        try {
+          const agent = await agentDb.findOrCreate(invoiceData.agentName);
+          agentId = agent.id;
+          console.log('👤 [Ledgee] Associated with agent:', { id: agentId, name: agent.name });
+        } catch (error) {
+          console.error('❌ [Ledgee] Failed to associate agent:', error);
+        }
+      }
+
+      console.log('📝 [Ledgee] Creating final invoice object...');
+      console.log('📝 [Ledgee] Invoice ID:', invoiceId);
+      console.log('📝 [Ledgee] Invoice data to merge:', invoiceData);
+      
       const invoice: Partial<Invoice> = {
         id: invoiceId,
         ...invoiceData,
+        merchantId,
+        storeName,
+        agentId,
         extractedAt: new Date().toISOString(),
         rawText: rawContext,
-        imageUrl: await this.createImageUrl(imageFile)
+        imageData: imageDataUrl // Store base64 image data in IndexedDB
       };
 
+      console.log('📝 [Ledgee] Final invoice object:', JSON.stringify(invoice, null, 2));
       const processingTime = Date.now() - startTime;
       console.timeEnd('invoice-extraction-total');
-      console.log('[ShawAI] Invoice extraction succeeded', {
+      console.log('[Ledgee] Invoice extraction succeeded', {
         invoiceId,
         processingTime,
       });
 
       return {
-        invoice,
+        invoice: {
+          ...invoice,
+          aiModel: this.useOnlineGemini ? 'gemini-2.5-flash-lite' : 'chrome-builtin',
+          aiResponseTime: processingTime,
+          aiExtractedFrom: 'image'
+        },
         confidence: invoiceData.confidence || 0.5,
         rawText: rawContext,
         processingTime,
@@ -276,6 +312,10 @@ class AIInvoiceExtractor {
   }
 
   private async extractInvoiceData(imageFile: File): Promise<{ aiResponse: string; rawContext: string; agentHint: string | null }> {
+    if (this.useOnlineGemini && this.geminiAPI) {
+      return this.extractWithGeminiAPI(imageFile);
+    }
+
     const LanguageModel = (window as any).LanguageModel;
 
     if (!LanguageModel?.availability || !LanguageModel.create) {
@@ -288,10 +328,10 @@ class AIInvoiceExtractor {
     };
 
     console.time('invoice-availability');
-    console.log('[ShawAI] Checking multimodal availability', availabilityOptions);
+    console.log('[Ledgee] Checking multimodal availability', availabilityOptions);
     const availability = await LanguageModel.availability(availabilityOptions);
     console.timeEnd('invoice-availability');
-    console.log('[ShawAI] Multimodal availability result:', availability);
+    console.log('[Ledgee] Multimodal availability result:', availability);
 
     if (availability !== 'available') {
       if (availability === 'after-download') {
@@ -306,7 +346,7 @@ class AIInvoiceExtractor {
     }
 
     console.time('invoice-session-create');
-    console.log('[ShawAI] Creating LanguageModel session');
+    console.log('[Ledgee] Creating LanguageModel session');
     const session = await LanguageModel.create({
       ...availabilityOptions,
       initialPrompts: [
@@ -319,11 +359,11 @@ class AIInvoiceExtractor {
       topK: 1,
     });
     console.timeEnd('invoice-session-create');
-    console.log('[ShawAI] Session created');
+    console.log('[Ledgee] Session created');
 
     try {
       console.time('invoice-session-append');
-      console.log('[ShawAI] Appending invoice image to session');
+      console.log('[Ledgee] Appending invoice image to session');
       await session.append([
         {
           role: 'user',
@@ -340,14 +380,14 @@ class AIInvoiceExtractor {
         },
       ]);
       console.timeEnd('invoice-session-append');
-      console.log('[ShawAI] Append completed');
+      console.log('[Ledgee] Append completed');
 
       console.time('invoice-session-prompt');
-      console.log('[ShawAI] Requesting structured response from session');
+      console.log('[Ledgee] Requesting structured response from session');
 
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => {
-        console.warn('[ShawAI] Prompt timeout reached, aborting request');
+        console.warn('[Ledgee] Prompt timeout reached, aborting request');
         controller.abort();
       }, PROMPT_TIMEOUT_MS);
 
@@ -366,14 +406,14 @@ class AIInvoiceExtractor {
           }
         );
         structuredDuration = (performance.now?.() ?? Date.now()) - structuredStart;
-        console.log('[ShawAI] Prompt completed (structured with responseConstraint)', {
+        console.log('[Ledgee] Prompt completed (structured with responseConstraint)', {
           durationMs: structuredDuration,
         });
       } catch (error) {
         window.clearTimeout(timeoutId);
 
         if ((error instanceof DOMException || error instanceof Error) && error.name === 'AbortError') {
-          console.warn('[ShawAI] Structured prompt timed out; retrying without responseConstraint');
+          console.warn('[Ledgee] Structured prompt timed out; retrying without responseConstraint');
           usedFallback = true;
         } else {
           throw error;
@@ -385,12 +425,12 @@ class AIInvoiceExtractor {
           const fallbackStart = performance.now?.() ?? Date.now();
           const fallbackController = new AbortController();
           const fallbackTimeout = window.setTimeout(() => {
-            console.warn('[ShawAI] Fallback prompt timeout reached, aborting');
+            console.warn('[Ledgee] Fallback prompt timeout reached, aborting');
             fallbackController.abort();
           }, PROMPT_TIMEOUT_MS);
 
           response = await session.prompt(
-            'Extract the invoice data as JSON with the fields merchantName, merchantAddress, agentName, terms, termsDays, invoiceNumber, date, time, subtotal, tax, total, currency, paymentMethod, phoneNumber, email, website, confidence, and items (array with name, description, quantity, unitPrice, totalPrice, category). Pay special attention to: 1) TERMS/AGENT fields - look for "TERMS/AGENT: 120 DAYS (ROGER)" OR "TERMS/AGENT: 120 DAYS EDWARD" format and extract terms="120 DAYS", termsDays=120, agentName="ROGER" or "EDWARD", 2) Handwritten totals (often in red ink) - use these over calculated totals, 3) Crossed-out items should be excluded, circled items are valid, 4) Read exact quantities from QUANTITY column (if it shows "50", extract quantity=50, not 1), 5) Handle comma-separated numbers like "13,365" correctly. Output plain numbers for monetary values (no currency symbols or commas). Return only the JSON object.',
+            'Extract invoice data as JSON. Look for store name (invoice issuer), "SOLD TO" for merchant name, terms/agent ONLY if present (use null if missing), handwritten totals, exclude crossed-out items. Return JSON with storeName, merchantName, date, total, items, agentName, terms, termsDays, currency. Use null for missing fields.',
             {
               signal: fallbackController.signal,
             }
@@ -398,7 +438,7 @@ class AIInvoiceExtractor {
 
           window.clearTimeout(fallbackTimeout);
           const fallbackDuration = (performance.now?.() ?? Date.now()) - fallbackStart;
-          console.log('[ShawAI] Prompt completed via fallback (no responseConstraint)', {
+          console.log('[Ledgee] Prompt completed via fallback (no responseConstraint)', {
             durationMs: fallbackDuration,
           });
         } catch (fallbackError) {
@@ -416,7 +456,7 @@ class AIInvoiceExtractor {
       const aiResponse = this.normalizePromptResponse(response);
 
       if (usedFallback) {
-        console.warn('[ShawAI] Using fallback response without responseConstraint; output may require additional validation', {
+        console.warn('[Ledgee] Using fallback response without responseConstraint; output may require additional validation', {
           structuredDurationMs: structuredDuration,
           fallbackPreview: aiResponse.slice(0, 140),
         });
@@ -450,9 +490,9 @@ class AIInvoiceExtractor {
           }
         } catch (agentError) {
           if ((agentError instanceof DOMException || agentError instanceof Error) && agentError.name === 'AbortError') {
-            console.warn('[ShawAI] Agent follow-up prompt timed out');
+            console.warn('[Ledgee] Agent follow-up prompt timed out');
           } else {
-            console.warn('[ShawAI] Agent follow-up prompt failed:', agentError);
+            console.warn('[Ledgee] Agent follow-up prompt failed:', agentError);
           }
         }
       }
@@ -465,8 +505,74 @@ class AIInvoiceExtractor {
     } finally {
       if (typeof session.destroy === 'function') {
         session.destroy();
-        console.log('[ShawAI] Session destroyed');
+        console.log('[Ledgee] Session destroyed');
       }
+    }
+  }
+
+  private async extractWithGeminiAPI(imageFile: File): Promise<{ aiResponse: string; rawContext: string; agentHint: string | null }> {
+    if (!this.geminiAPI) {
+      console.error('❌ [Ledgee] Gemini API not initialized');
+      throw new Error('Gemini API not initialized');
+    }
+
+    try {
+      console.time('gemini-api-extraction');
+      console.log('🚀 [Ledgee] Starting Gemini API extraction for', {
+        name: imageFile.name,
+        size: imageFile.size,
+        type: imageFile.type,
+      });
+
+      // Create image part
+      console.log('📸 [Ledgee] Creating image part...');
+      const imagePart = await this.geminiAPI.createImagePart(imageFile);
+      console.log('✅ [Ledgee] Image part created');
+      
+      // Create text part with the system prompt
+      console.log('📝 [Ledgee] Creating text part with system prompt...');
+      const textPart = this.geminiAPI.createTextPart(EXTRACTION_SYSTEM_PROMPT);
+      console.log('✅ [Ledgee] Text part created, prompt length:', EXTRACTION_SYSTEM_PROMPT.length);
+
+      // Generate content using Gemini API with optimized settings for speed
+      const request = {
+        contents: [{
+          parts: [textPart, imagePart]
+        }],
+        generationConfig: {
+          temperature: 0.0, // More deterministic for faster processing
+          maxOutputTokens: 2048, // Reduced for faster response
+          topP: 0.8, // Reduced for faster processing
+          topK: 10, // Reduced for faster processing
+        }
+      };
+
+      console.log('🌐 [Ledgee] Sending request to Gemini API...');
+      const aiResponse = await this.geminiAPI.generateContent(request);
+      console.timeEnd('gemini-api-extraction');
+      console.log('✅ [Ledgee] Gemini API extraction completed');
+      console.log('📄 [Ledgee] Response length:', aiResponse?.length || 0);
+      console.log('📄 [Ledgee] Full Response:', aiResponse);
+      console.log('📄 [Ledgee] Response preview:', aiResponse?.substring(0, 300));
+
+      // Extract agent hint from response
+      let agentHint: string | null = null;
+      const agentMatch = aiResponse.match(/"agentName"\s*:\s*"([^"\\]+)"/i);
+      if (agentMatch && agentMatch[1].trim().toLowerCase() !== 'null') {
+        agentHint = agentMatch[1].trim();
+        console.log('👤 [Ledgee] Agent hint found:', agentHint);
+      } else {
+        console.log('👤 [Ledgee] No agent hint found in response');
+      }
+
+      return {
+        aiResponse,
+        rawContext: '[Image processed by Gemini API]',
+        agentHint,
+      };
+    } catch (error) {
+      console.error('❌ [Ledgee] Gemini API extraction failed:', error);
+      throw error;
     }
   }
 
@@ -475,24 +581,32 @@ class AIInvoiceExtractor {
   }
 
   private async parseAIResponse(response: string): Promise<any> {
-    console.log('Parsing AI response:', response);
+    console.log('🔍 [Ledgee] ===== PARSING AI RESPONSE =====');
+    console.log('🔍 [Ledgee] Raw response:', response);
+    console.log('🔍 [Ledgee] Response type:', typeof response);
+    console.log('🔍 [Ledgee] Response length:', response?.length);
     
     try {
       // Clean the response - remove any markdown formatting or extra text
       let cleanResponse = response.trim();
-      console.log('Cleaned response:', cleanResponse);
+      console.log('🧹 [Ledgee] Cleaned response:', cleanResponse);
       
       // Look for JSON object in the response
       const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanResponse = jsonMatch[0];
-        console.log('Extracted JSON:', cleanResponse);
+        console.log('📦 [Ledgee] Extracted JSON from response:', cleanResponse);
+      } else {
+        console.warn('⚠️ [Ledgee] No JSON object found in response!');
       }
 
       cleanResponse = cleanResponse.replace(/[₱¥€£]/g, '');
+      console.log('🧹 [Ledgee] After currency symbol removal:', cleanResponse);
 
       const parsed = JSON.parse(cleanResponse);
-      console.log('Parsed invoice data:', parsed);
+      console.log('✅ [Ledgee] Successfully parsed JSON');
+      console.log('📊 [Ledgee] Parsed data keys:', Object.keys(parsed));
+      console.log('📊 [Ledgee] Parsed invoice data:', JSON.stringify(parsed, null, 2));
 
       const toNumber = (value: any): number | null => {
         if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -537,9 +651,15 @@ class AIInvoiceExtractor {
 
       const normalized: any = { ...parsed };
 
+      console.log('🔄 [Ledgee] Starting normalization...');
       normalized.merchantName = parsed.merchantName || parsed.merchant || parsed.vendor || 'Unknown Merchant';
+      console.log('🏪 [Ledgee] Merchant name:', normalized.merchantName);
+      
       normalized.invoiceNumber = parsed.invoiceNumber || parsed.invoice_number || parsed.invoice_no || parsed.invoiceId || null;
+      console.log('🔢 [Ledgee] Invoice number:', normalized.invoiceNumber);
+      
       normalized.date = parsed.date ? toIsoDate(parsed.date) : toIsoDate(parsed.invoice_date || parsed.transaction_date || new Date().toISOString());
+      console.log('📅 [Ledgee] Date:', normalized.date);
       
       // Extract terms and agent information
       normalized.terms = parsed.terms || null;
@@ -547,7 +667,7 @@ class AIInvoiceExtractor {
       
       // Fallback: Try to extract terms/agent from raw text if not found in structured data
       if (!normalized.terms || !normalized.termsDays || !normalized.agentName) {
-        console.log('[ShawAI] Attempting fallback extraction for terms/agent from raw response');
+        console.log('[Ledgee] Attempting fallback extraction for terms/agent from raw response');
         const rawText = response.toLowerCase();
         
         // Look for TERMS/AGENT pattern - try with parentheses first, then without
@@ -557,7 +677,7 @@ class AIInvoiceExtractor {
           termsAgentMatch = rawText.match(/terms\/agent[:\s]*(\d+)\s*days?\s+([a-zA-Z\s]+)/i);
         }
         if (termsAgentMatch) {
-          console.log('[ShawAI] Found TERMS/AGENT pattern:', termsAgentMatch);
+          console.log('[Ledgee] Found TERMS/AGENT pattern:', termsAgentMatch);
           if (!normalized.termsDays) {
             normalized.termsDays = parseInt(termsAgentMatch[1]);
           }
@@ -573,7 +693,7 @@ class AIInvoiceExtractor {
         if (!normalized.termsDays) {
           const daysMatch = rawText.match(/(\d+)\s*days?/i);
           if (daysMatch) {
-            console.log('[ShawAI] Found days pattern:', daysMatch);
+            console.log('[Ledgee] Found days pattern:', daysMatch);
             normalized.termsDays = parseInt(daysMatch[1]);
             if (!normalized.terms) {
               normalized.terms = `${daysMatch[1]} DAYS`;
@@ -581,7 +701,7 @@ class AIInvoiceExtractor {
           }
         }
         
-        console.log('[ShawAI] Final terms/agent extraction:', {
+        console.log('[Ledgee] Final terms/agent extraction:', {
           terms: normalized.terms,
           termsDays: normalized.termsDays,
           agentName: normalized.agentName
@@ -602,9 +722,26 @@ class AIInvoiceExtractor {
       const tax = toNumber(parsed.tax ?? parsed.sales_tax);
       const total = toNumber(parsed.total ?? parsed.totalAmount ?? parsed.amount_due) ?? 0;
 
+      console.log('💰 [Ledgee] Financial data from parsed:', {
+        parsedSubtotal: parsed.subtotal,
+        parsedTax: parsed.tax,
+        parsedTotal: parsed.total
+      });
+      console.log('💰 [Ledgee] Financial data after toNumber:', {
+        subtotal,
+        tax,
+        total
+      });
+
       normalized.subtotal = subtotal ?? undefined;
       normalized.tax = tax ?? undefined;
       normalized.total = total;
+      
+      console.log('💰 [Ledgee] Normalized financial data:', {
+        subtotal: normalized.subtotal,
+        tax: normalized.tax,
+        total: normalized.total
+      });
       
       // Enhanced currency detection
       let detectedCurrency = parsed.currency || parsed.currencyCode || parsed.currency_code;
@@ -653,10 +790,22 @@ class AIInvoiceExtractor {
       normalized.confidence = toNumber(parsed.confidence) ?? 0.5;
 
       const items: any[] = Array.isArray(parsed.items) ? parsed.items : [];
+      console.log('📦 [Ledgee] Items array:', items);
+      console.log('📦 [Ledgee] Items count:', items.length);
+      
       normalized.items = items.map((item: any, index: number) => {
+        console.log(`📦 [Ledgee] Processing item ${index + 1}:`, item);
+        
         const quantity = toNumber(item.quantity ?? item.qty) ?? 1;
         const unitPrice = toNumber(item.unitPrice ?? item.unit_price ?? item.price_per_unit ?? item.price) ?? 0;
         const totalPrice = toNumber(item.totalPrice ?? item.total_price ?? item.total ?? item.price) ?? quantity * unitPrice;
+
+        console.log(`📦 [Ledgee] Item ${index + 1} parsed values:`, {
+          quantity,
+          unitPrice,
+          totalPrice,
+          name: item.name || item.description
+        });
 
         return {
           id: `item_${index + 1}`,
@@ -668,13 +817,15 @@ class AIInvoiceExtractor {
           category: item.category || null
         } as InvoiceItem;
       });
+      
+      console.log('📦 [Ledgee] Normalized items:', normalized.items);
 
       // Validation: Check if item totals match the handwritten total
       const calculatedTotal = normalized.items.reduce((sum: number, item: InvoiceItem) => sum + (item.totalPrice || 0), 0);
       const handwrittenTotal = total;
       
       if (Math.abs(calculatedTotal - handwrittenTotal) > 0.01) {
-        console.warn(`[ShawAI] Total mismatch detected:`, {
+        console.warn(`[Ledgee] Total mismatch detected:`, {
           calculatedTotal,
           handwrittenTotal,
           difference: Math.abs(calculatedTotal - handwrittenTotal)
@@ -689,10 +840,14 @@ class AIInvoiceExtractor {
         }
       }
 
+      console.log('✅ [Ledgee] ===== PARSING COMPLETE =====');
+      console.log('✅ [Ledgee] Final normalized data:', JSON.stringify(normalized, null, 2));
       return normalized;
     } catch (error) {
-      console.error('Failed to parse AI response:', error);
-      console.error('Original response was:', response);
+      console.error('❌ [Ledgee] ===== PARSING FAILED =====');
+      console.error('❌ [Ledgee] Error:', error);
+      console.error('❌ [Ledgee] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('❌ [Ledgee] Original response was:', response);
       
       // Return fallback data
       return {
@@ -828,7 +983,7 @@ export async function checkChromeAIAvailability(): Promise<ChromeAIStatus> {
     return {
       available: false,
       status: 'Chrome LanguageModel not detected',
-      instructions: 'Use Chrome Canary and enable chrome://flags/#prompt-api-for-gemini-nano, #prompt-api-for-gemini-nano-multimodal-input, and #optimization-guide-on-device-model',
+      instructions: 'Enable these Chrome flags:\n• chrome://flags/#prompt-api-for-gemini-nano\n• chrome://flags/#prompt-api-for-gemini-nano-multimodal-input\n• chrome://flags/#optimization-guide-on-device-model',
       promptApiAvailable: false,
       languageModelAvailable: false,
     };
@@ -855,7 +1010,7 @@ export async function checkChromeAIAvailability(): Promise<ChromeAIStatus> {
   }
 
   const languageModelAvailable = true;
-  const instructions = 'Enable chrome://flags/#prompt-api-for-gemini-nano, chrome://flags/#prompt-api-for-gemini-nano-multimodal-input, and chrome://flags/#optimization-guide-on-device-model, then restart Chrome Canary.';
+  const instructions = 'Enable these Chrome flags, then restart:\n• chrome://flags/#prompt-api-for-gemini-nano\n• chrome://flags/#prompt-api-for-gemini-nano-multimodal-input\n• chrome://flags/#optimization-guide-on-device-model';
 
   switch (multimodalAvailability) {
     case 'available':
@@ -869,7 +1024,7 @@ export async function checkChromeAIAvailability(): Promise<ChromeAIStatus> {
       return {
         available: false,
         status: 'Gemini Nano multimodal model is downloading',
-        instructions: 'Keep Chrome Canary open until the model download completes, then try again.',
+        instructions: 'Keep Chrome open until the model download completes, then try again.',
         promptApiAvailable: false,
         languageModelAvailable,
       };
@@ -904,9 +1059,9 @@ export async function describeImage(imageFile: File): Promise<string> {
     expectedOutputs: MULTIMODAL_EXPECTED_OUTPUTS,
   };
 
-  console.log('[ShawAI] [Describe] Checking availability for quick image description');
+  console.log('[Ledgee] [Describe] Checking availability for quick image description');
   const availability = await LanguageModel.availability(availabilityOptions);
-  console.log('[ShawAI] [Describe] Availability status:', availability);
+  console.log('[Ledgee] [Describe] Availability status:', availability);
 
   if (availability !== 'available') {
     throw new Error(`Gemini Nano not ready for image description (status: ${availability}).`);

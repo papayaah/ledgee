@@ -1,6 +1,6 @@
 {
-  "name": "Shaw AI - Invoice Extraction",
-  "short_name": "Shaw AI",
+  "name": "Ledgee - Invoice Extraction",
+  "short_name": "Ledgee",
   "description": "Offline-first invoice extraction webapp using Chrome's built-in AI",
   "start_url": "/",
   "display": "standalone",
@@ -12,9 +12,9 @@
   "categories": ["productivity", "business", "finance"],
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/favicon.png",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/png"
     }
   ],
   "features": [
@@ -31,7 +31,7 @@
       "url": "/?action=upload",
       "icons": [
         {
-          "src": "/favicon.svg",
+          "src": "/favicon.png",
           "sizes": "any"
         }
       ]
@@ -43,7 +43,7 @@
       "url": "/?action=view",
       "icons": [
         {
-          "src": "/favicon.svg",
+          "src": "/favicon.png",
           "sizes": "any"
         }
       ]

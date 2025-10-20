@@ -206,14 +206,14 @@ export default function InvoiceFilter({
 
   return (
     <div className="bg-card border border-border rounded-lg">
-      {/* Header */}
-      <div className="p-4 border-b border-border">
+      {/* Compact Header */}
+      <div className="p-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FiFilter className="text-primary" size={20} />
-            <h3 className="font-semibold">Filters & Search</h3>
+            <FiFilter className="text-primary" size={18} />
+            <h3 className="font-semibold text-sm">Filters</h3>
             {hasActiveFilters && (
-              <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">
+              <span className="bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
                 {getFilterCount()}
               </span>
             )}
@@ -222,50 +222,50 @@ export default function InvoiceFilter({
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
               >
-                <FiX size={14} />
-                Clear All
+                <FiX size={12} />
+                Clear
               </button>
             )}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-sm text-primary hover:text-primary/80 transition-colors"
+              className="text-xs text-primary hover:text-primary/80 transition-colors"
             >
-              {isExpanded ? 'Collapse' : 'Expand'}
+              {isExpanded ? '▲' : '▼'}
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Search */}
-      <div className="p-4 border-b border-border">
+      <div className="p-3 border-b border-border">
         <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
+          <FiSearch className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
             placeholder="Search across all fields..."
             value={filterState.searchQuery}
             onChange={(e) => updateFilter('searchQuery', e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
       </div>
 
       {/* Expanded Filters */}
       {isExpanded && (
-        <div className="p-4 space-y-6">
+        <div className="p-3 space-y-4">
           {/* Row 1: Store Name & Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <FiTag size={16} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <FiTag size={14} />
                 Store Name
               </label>
               <select
                 value={filterState.storeName}
                 onChange={(e) => updateFilter('storeName', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Stores</option>
                 {uniqueStores.map(store => (
@@ -275,14 +275,14 @@ export default function InvoiceFilter({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <FiTag size={16} />
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <FiTag size={14} />
                 Category
               </label>
               <select
                 value={filterState.category}
                 onChange={(e) => updateFilter('category', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Categories</option>
                 {uniqueCategories.map(category => (
@@ -295,14 +295,14 @@ export default function InvoiceFilter({
           {/* Row 2: City & Invoice Number */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
                 <FiMapPin size={16} />
                 City
               </label>
               <select
                 value={filterState.city}
                 onChange={(e) => updateFilter('city', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Cities</option>
                 {uniqueCities.map(city => (
@@ -312,7 +312,7 @@ export default function InvoiceFilter({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
                 <FiHash size={16} />
                 Invoice Number
               </label>
@@ -321,7 +321,7 @@ export default function InvoiceFilter({
                 placeholder="Enter invoice number..."
                 value={filterState.invoiceNumber}
                 onChange={(e) => updateFilter('invoiceNumber', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
           </div>
@@ -339,7 +339,7 @@ export default function InvoiceFilter({
                   type="date"
                   value={filterState.dateRange.start}
                   onChange={(e) => updateNestedFilter('dateRange', 'start', e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
               <div>
@@ -348,7 +348,7 @@ export default function InvoiceFilter({
                   type="date"
                   value={filterState.dateRange.end}
                   onChange={(e) => updateNestedFilter('dateRange', 'end', e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
             </div>
@@ -368,7 +368,7 @@ export default function InvoiceFilter({
                   placeholder="0.00"
                   value={filterState.amountRange.min}
                   onChange={(e) => updateNestedFilter('amountRange', 'min', e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
               <div>
@@ -378,7 +378,7 @@ export default function InvoiceFilter({
                   placeholder="999999.99"
                   value={filterState.amountRange.max}
                   onChange={(e) => updateNestedFilter('amountRange', 'max', e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
             </div>
@@ -393,7 +393,7 @@ export default function InvoiceFilter({
               <select
                 value={filterState.paymentMethod}
                 onChange={(e) => updateFilter('paymentMethod', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Payment Methods</option>
                 {uniquePaymentMethods.map(method => (
@@ -409,7 +409,7 @@ export default function InvoiceFilter({
               <select
                 value={filterState.agentName}
                 onChange={(e) => updateFilter('agentName', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Agents</option>
                 {uniqueAgents.map(agent => (
@@ -428,7 +428,7 @@ export default function InvoiceFilter({
               <select
                 value={filterState.sortBy}
                 onChange={(e) => updateFilter('sortBy', e.target.value as any)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="date">Date</option>
                 <option value="merchant">Store Name</option>
@@ -444,7 +444,7 @@ export default function InvoiceFilter({
               <select
                 value={filterState.sortOrder}
                 onChange={(e) => updateFilter('sortOrder', e.target.value as any)}
-                className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-2.5 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="desc">Descending</option>
                 <option value="asc">Ascending</option>
@@ -456,3 +456,5 @@ export default function InvoiceFilter({
     </div>
   );
 }
+
+

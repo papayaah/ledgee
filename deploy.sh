@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Shaw AI Deployment Script
+# Ledgee Deployment Script
 # Builds and prepares the app for static hosting
 
 set -e
 
-echo "🚀 Shaw AI Deployment Helper"
+echo "🚀 Ledgee Deployment Helper"
 echo "=================================="
 
 # Colors for output
@@ -34,13 +34,13 @@ print_error() {
 
 # Check if we're in the right directory
 if [ ! -f "package.json" ]; then
-    print_error "package.json not found. Are you in the Shaw AI project directory?"
+    print_error "package.json not found. Are you in the Ledgee project directory?"
     exit 1
 fi
 
-# Check if Shaw AI project
-if ! grep -q "shawai" package.json; then
-    print_error "This doesn't appear to be the Shaw AI project"
+# Check if Ledgee project
+if ! grep -q "ledgee" package.json; then
+    print_error "This doesn't appear to be the Ledgee project"
     exit 1
 fi
 
@@ -123,7 +123,7 @@ FILE_COUNT=$(find out -type f | wc -l)
 print_status "Files generated: $FILE_COUNT"
 
 echo ""
-print_success "🎉 Shaw AI is ready for deployment!"
+print_success "🎉 Ledgee is ready for deployment!"
 echo ""
 print_status "Next steps:"
 echo "  1. Upload the 'out' folder to your web host"

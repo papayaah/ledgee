@@ -1,61 +1,39 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import InvoiceDropzone from '@/components/InvoiceDropzone';
-import InvoiceList from '@/components/InvoiceList';
-import InvoiceDetails from '@/components/InvoiceDetails';
-import DemoInstructions from '@/components/DemoInstructions';
-import AITestComponent from '@/components/AITestComponent';
-import SampleImages from '@/components/SampleImages';
-import DeleteAllData from '@/components/DeleteAllData';
-import { DragDropFile, ProcessingStatus, DatabaseInvoice } from '@/types/invoice';
-import { aiExtractor, checkChromeAIAvailability, ChromeAIStatus, describeImage } from '@/lib/ai-extraction';
-import { invoiceDb } from '@/lib/database';
-import ImageDescribeDropzone from '@/components/ImageDescribeDropzone';
-import AIPromptInput from '@/components/AIPromptInput';
-import AIStatusIndicator from '@/components/AIStatusIndicator';
-import GoogleSheetsSync from '@/components/GoogleSheetsSync';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useRouter } from 'next/navigation';
+import { invoiceDb, db } from '@/lib/database';
 import { formatCurrencyWithLocale } from '@/lib/currency-utils';
-
-function formatMonthLabel(key: string) {
-  const [year, month] = key.split('-');
-  const date = new Date(Number(year), Number(month) - 1, 1);
-  if (Number.isNaN(date.getTime())) return key;
-  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
+import { useAIProvider } from '@/contexts/AIProviderContext';
+import { useAIAvailabilityStore } from '@/store/aiAvailabilityStore';
+import AIPromptInput from '@/components/AIPromptInput';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { MdPerson, MdStoreMallDirectory, MdCalendarMonth, MdCalendarToday, MdStore } from 'react-icons/md';
 
 export default function HomePage() {
-  const [invoices, setInvoices] = useState<DatabaseInvoice[]>([]);
+  const router = useRouter();
+  const { useOnlineGemini, geminiApiKey } = useAIProvider();
+  const { isAvailable: chromeAIAvailable } = useAIAvailabilityStore();
+  
+  // Use reactive query for invoices - automatically updates when IndexedDB changes
+  const invoices = useLiveQuery(
+    async () => {
+      const allInvoices = await db.invoices.toArray();
+      // Sort by date descending, then by created date
+      return allInvoices.sort((a, b) => {
+        const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateCompare !== 0) return dateCompare;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+    },
+    []
+  ) || [];
+  
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<ProcessingStatus>({ status: 'idle' });
-  const [aiAvailable, setAiAvailable] = useState<boolean>(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<DatabaseInvoice | null>(null);
-  const [describeLoading, setDescribeLoading] = useState(false);
-  const [describeResult, setDescribeResult] = useState<string | null>(null);
-  const [describeError, setDescribeError] = useState<string | null>(null);
-  const [describeResponseTime, setDescribeResponseTime] = useState<number | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [lastProcessingTime, setLastProcessingTime] = useState<number | null>(null);
-  const [debugMode, setDebugMode] = useState<boolean>(false);
-
-  // Listen for debug mode changes from header
-  useEffect(() => {
-    const handleDebugModeChange = (event: CustomEvent) => {
-      setDebugMode(event.detail);
-    };
-
-    // Check localStorage for initial debug mode state
-    const stored = localStorage.getItem('debugMode');
-    if (stored !== null) {
-      setDebugMode(JSON.parse(stored));
-    }
-
-    window.addEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('debugModeChanged', handleDebugModeChange as EventListener);
-    };
-  }, []);
+  const [hasCheckedForInvoices, setHasCheckedForInvoices] = useState(false);
+  const [showAgents, setShowAgents] = useState(false); // Toggle between merchants and agents
+  const [revenueView, setRevenueView] = useState<'daily' | 'monthly' | 'store'>('monthly'); // Revenue view type
 
   // Calculate total amounts by currency
   const totalAmountsByCurrency = useMemo(() => {
@@ -91,279 +69,209 @@ export default function HomePage() {
     )[0];
   }, [invoices, totalAmountsByCurrency]);
 
-  const agentSummaries = useMemo(() => {
-    const map = new Map<string, {
-      name: string;
-      totalInvoices: number;
-      totalAmount: number;
-      monthlyTotals: Record<string, number>;
-    }>();
-
-    invoices.forEach((invoice) => {
-      const agent = invoice.agentName?.trim();
-      if (!agent) return;
-
-      if (!map.has(agent)) {
-        map.set(agent, {
-          name: agent,
-          totalInvoices: 0,
-          totalAmount: 0,
-          monthlyTotals: {},
-        });
-      }
-
-      const entry = map.get(agent)!;
-      entry.totalInvoices += 1;
-      entry.totalAmount += invoice.total || 0;
-
-      const invoiceDate = new Date(invoice.date);
-      if (!Number.isNaN(invoiceDate.getTime())) {
-        const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
-        entry.monthlyTotals[monthKey] = (entry.monthlyTotals[monthKey] ?? 0) + (invoice.total || 0);
-      }
-    });
-
-    return Array.from(map.values()).map((entry) => ({
-      ...entry,
-      averageTicket: entry.totalInvoices > 0 ? entry.totalAmount / entry.totalInvoices : 0,
-      monthlyTotals: Object.entries(entry.monthlyTotals)
-        .map(([month, amount]) => ({ month, amount }))
-        .sort((a, b) => b.month.localeCompare(a.month)),
-    }));
+  // Calculate unique agents count for stats
+  const uniqueAgentsCount = useMemo(() => {
+    const agents = new Set(invoices.map(inv => inv.agentName).filter(Boolean));
+    return agents.size;
   }, [invoices]);
 
-  const uniqueAgentsCount = useMemo(() => agentSummaries.length, [agentSummaries]);
+  // Chart data: Monthly revenue trend
+  const monthlyRevenueData = useMemo(() => {
+    const monthlyTotals: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      const date = new Date(invoice.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!monthlyTotals[monthKey]) {
+        monthlyTotals[monthKey] = 0;
+      }
+      monthlyTotals[monthKey] += invoice.total;
+    });
+    
+    // Sort by month
+    const sorted = Object.entries(monthlyTotals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, total]) => {
+        const [year, month] = key.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1);
+        return {
+          month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          amount: total
+        };
+      });
+    
+    return sorted;
+  }, [invoices]);
 
-  const filteredInvoices = useMemo(() => {
-    if (!selectedAgent) return invoices;
-    const lower = selectedAgent.toLowerCase();
-    return invoices.filter((invoice) => invoice.agentName?.toLowerCase() === lower);
-  }, [invoices, selectedAgent]);
+  // Chart data: Daily revenue trend
+  const dailyRevenueData = useMemo(() => {
+    const dailyTotals: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      const dateKey = invoice.date; // Already in YYYY-MM-DD format
+      
+      if (!dailyTotals[dateKey]) {
+        dailyTotals[dateKey] = 0;
+      }
+      dailyTotals[dateKey] += invoice.total;
+    });
+    
+    // Sort by date and format
+    const sorted = Object.entries(dailyTotals)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateKey, total]) => {
+        const date = new Date(dateKey);
+        return {
+          month: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          amount: total
+        };
+      });
+    
+    // Limit to last 30 days for readability
+    return sorted.slice(-30);
+  }, [invoices]);
 
-  // Initialize database and check AI availability
+  // Chart data: Top merchants
+  const topMerchantsData = useMemo(() => {
+    const merchantTotals: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      const merchant = invoice.merchantName || 'Unknown';
+      if (!merchantTotals[merchant]) {
+        merchantTotals[merchant] = 0;
+      }
+      merchantTotals[merchant] += invoice.total;
+    });
+    
+    // Get top 5 merchants
+    const sorted = Object.entries(merchantTotals)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([name, total]) => ({
+        name: name.length > 20 ? name.substring(0, 20) + '...' : name,
+        amount: total
+      }));
+    
+    return sorted;
+  }, [invoices]);
+
+  // Chart data: Top agents
+  const topAgentsData = useMemo(() => {
+    const agentTotals: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      const agent = invoice.agentName || 'Unknown';
+      if (!agentTotals[agent]) {
+        agentTotals[agent] = 0;
+      }
+      agentTotals[agent] += invoice.total;
+    });
+    
+    // Get top 5 agents
+    const sorted = Object.entries(agentTotals)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([name, total]) => ({
+        name: name.length > 20 ? name.substring(0, 20) + '...' : name,
+        amount: total
+      }));
+    
+    return sorted;
+  }, [invoices]);
+
+  // Chart data: Spending by store
+  const storeSpendingData = useMemo(() => {
+    const storeTotals: { [key: string]: number } = {};
+    
+    invoices.forEach(invoice => {
+      const store = invoice.storeName || 'Unknown';
+      if (!storeTotals[store]) {
+        storeTotals[store] = 0;
+      }
+      storeTotals[store] += invoice.total;
+    });
+    
+    const sorted = Object.entries(storeTotals).map(([name, value]) => ({
+      name: name.length > 15 ? name.substring(0, 15) + '...' : name,
+      value
+    }));
+    
+    return sorted;
+  }, [invoices]);
+
+  const COLORS = ['#c4b5fd', '#fcd34d', '#6ee7b7', '#93c5fd', '#fca5a5', '#f9a8d4']; // Pastel colors
+
+  // Initialize database
   useEffect(() => {
+    let isMounted = true;
+    
     async function initialize() {
-      console.log('Starting initialization...');
+      if (!isMounted) return;
       
       try {
-        // Initialize database
-        console.log('Initializing database...');
         await invoiceDb.initialize();
-        
-        // Load existing invoices
-        console.log('Loading existing invoices...');
-        const existingInvoices = await invoiceDb.getAllInvoices();
-        setInvoices(existingInvoices);
-        console.log(`Loaded ${existingInvoices.length} existing invoices`);
-        
-        // Check Chrome LanguageModel availability
-        console.log('Checking LanguageModel availability...');
-        const aiCheck = await checkChromeAIAvailability();
-        console.log('LanguageModel check result:', aiCheck);
-        
-        setAiAvailable(aiCheck.available);
-        
-        if (!aiCheck.available && aiCheck.instructions) {
-          console.warn('LanguageModel setup instructions:', aiCheck.instructions);
-        }
-        
       } catch (error) {
         console.error('Initialization failed:', error);
       } finally {
-        setLoading(false);
-        console.log('Initialization complete');
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     initialize();
-  }, []);
-
-  // Handle file drop and processing
-  const handleFilesDropped = useCallback(async (files: DragDropFile[]) => {
-    console.log('Files dropped, aiAvailable:', aiAvailable);
     
-    if (!aiAvailable) {
-      alert('Chrome Prompt API is not available. Please use Chrome Canary with the required flags enabled.');
-      return;
-    }
+    return () => {
+      isMounted = false;
+    };
+  }, [useOnlineGemini]);
 
-    const batchStart = performance.now ? performance.now() : Date.now();
-    setProcessing({ 
-      status: 'processing', 
-      message: 'Extracting invoice data...', 
-      progress: 0 
-    });
+  // Auto-redirect based on setup state and invoices
+  useEffect(() => {
+    if (loading || hasCheckedForInvoices) return;
 
-    try {
-      const newInvoices: DatabaseInvoice[] = [];
+    const checkAndRedirect = async () => {
+      // Check if we have any invoices
+      const hasInvoices = invoices.length > 0;
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        setProcessing({ 
-          status: 'processing', 
-          message: `Processing ${file.file.name}...`, 
-          progress: (i / files.length) * 100 
-        });
-
-        try {
-          console.log(`Starting extraction for ${file.file.name}`);
-          // Extract invoice data using AI
-          const result = await aiExtractor.extractFromImage(file.file);
-          console.log('Extraction result:', result);
-          
-          // Store the processing time for display
-          if (result.processingTime) {
-            setLastProcessingTime(result.processingTime);
-          }
-          
-          if (result.invoice && result.invoice.merchantName) {
-            // Save to database
-            const completeInvoice = {
-              ...result.invoice,
-              id: result.invoice.id || `inv_${Date.now()}_${i}`,
-              merchantName: result.invoice.merchantName,
-              date: result.invoice.date || new Date().toISOString().split('T')[0],
-              total: result.invoice.total || 0,
-              items: result.invoice.items || [],
-              extractedAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              processingTime: result.processingTime,
-            } as DatabaseInvoice;
-
-            await invoiceDb.saveInvoice(completeInvoice);
-            newInvoices.push(completeInvoice);
-            console.log('Successfully saved invoice:', completeInvoice.id);
-          }
-        } catch (error) {
-          console.error(`Failed to process ${file.file.name}:`, error);
-        }
-
-        // Clean up file preview
-        URL.revokeObjectURL(file.preview);
+      if (hasInvoices) {
+        // Has invoices, stay on dashboard
+        setHasCheckedForInvoices(true);
+        return;
       }
 
-      // Update invoices list
-      if (newInvoices.length > 0) {
-        const allInvoices = await invoiceDb.getAllInvoices();
-        setInvoices(allInvoices);
-
-        const totalDuration = (performance.now ? performance.now() : Date.now()) - batchStart;
-        setProcessing({ 
-          status: 'completed', 
-          message: `Successfully processed ${newInvoices.length} invoice${newInvoices.length !== 1 ? 's' : ''}! (${(totalDuration / 1000).toFixed(1)}s)` 
-        });
-        setLastProcessingTime(totalDuration);
+      // No invoices - check if AI is configured
+      const hasAI = chromeAIAvailable || (useOnlineGemini && geminiApiKey);
+      
+      if (!hasAI) {
+        // No AI configured, redirect to setup
+        console.log('No AI configured, redirecting to setup...');
+        router.push('/setup');
       } else {
-        setProcessing({ 
-          status: 'error', 
-          message: 'No invoices could be processed' 
-        });
-        setLastProcessingTime(null);
+        // AI is ready, redirect to add invoice
+        console.log('AI ready, redirecting to add invoice...');
+        router.push('/add-invoice');
       }
+    };
 
-    } catch (error) {
-      console.error('Processing failed:', error);
-      setProcessing({ 
-        status: 'error', 
-        message: 'Failed to process invoices' 
-      });
-      setLastProcessingTime(null);
-    }
+    checkAndRedirect();
+  }, [loading, hasCheckedForInvoices, invoices.length, chromeAIAvailable, useOnlineGemini, geminiApiKey, router]);
 
-    // Reset processing status after 3 seconds
-    setTimeout(() => {
-      setProcessing({ status: 'idle' });
-    }, 3000);
-  }, [aiAvailable]);
 
-  const handleDescribeImage = useCallback(async (file: File) => {
-    if (!aiAvailable) {
-      alert('Chrome Prompt API is not available. Please enable the required flags and ensure LanguageModel is set up.');
-      return;
-    }
 
-    setDescribeLoading(true);
-    setDescribeResult(null);
-    setDescribeError(null);
-    setDescribeResponseTime(null);
 
-    const startTime = Date.now();
-
-    try {
-      const description = await describeImage(file);
-      const responseTime = Date.now() - startTime;
-      setDescribeResult(description);
-      setDescribeResponseTime(responseTime);
-    } catch (error) {
-      console.error('Image description failed:', error);
-      setDescribeError(error instanceof Error ? error.message : 'Failed to describe image');
-    } finally {
-      setDescribeLoading(false);
-    }
-  }, [aiAvailable]);
-
-  const handleAgentSelect = useCallback((agentName: string) => {
-    setSelectedAgent(agentName);
-    setSelectedInvoice(null);
-  }, []);
-
-  const handleDeleteAllData = useCallback(async () => {
-    try {
-      // Clear all invoices from database
-      await invoiceDb.clearAllInvoices();
-      
-      // Reset all state
-      setInvoices([]);
-      setSelectedInvoice(null);
-      setSelectedAgent(null);
-      setLastProcessingTime(null);
-      setDescribeResult(null);
-      setDescribeError(null);
-      setDescribeResponseTime(null);
-      
-      console.log('All data deleted successfully');
-    } catch (error) {
-      console.error('Failed to delete all data:', error);
-      alert('Failed to delete all data. Please try again.');
-    }
-  }, []);
-
-  const clearAgentFilter = useCallback(() => {
-    setSelectedAgent(null);
-  }, []);
-
-  // Handle invoice selection
-  const handleInvoiceSelect = useCallback((invoice: DatabaseInvoice) => {
-    setSelectedInvoice(invoice);
-  }, []);
-
-  // Handle invoice deletion
-  const handleInvoiceDelete = useCallback(async (invoiceId: string) => {
-    try {
-      await invoiceDb.deleteInvoice(invoiceId);
-      const updatedInvoices = await invoiceDb.getAllInvoices();
-      setInvoices(updatedInvoices);
-      
-      if (selectedInvoice?.id === invoiceId) {
-        setSelectedInvoice(null);
-      }
-    } catch (error) {
-      console.error('Failed to delete invoice:', error);
-      alert('Failed to delete invoice');
-    }
-  }, [selectedInvoice]);
-
-  // Loading state
-  if (loading) {
+  // Loading state or redirecting
+  if (loading || !hasCheckedForInvoices || invoices.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
           <div>
-            <h2 className="text-xl font-semibold">Initializing Shaw AI...</h2>
-            <p className="text-muted-foreground">Setting up database and checking AI availability</p>
+            <h2 className="text-xl font-semibold">Loading Ledgee...</h2>
+            <p className="text-muted-foreground">
+              {loading ? 'Setting up database' : 'Preparing your workspace'}
+            </p>
           </div>
         </div>
       </div>
@@ -371,39 +279,11 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="space-y-8">
-        {/* Welcome section */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold brand-gradient">
-            Welcome to Shaw AI
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Extract invoice data automatically using Chrome&apos;s built-in AI. 
-            Drop your invoice images below and watch the magic happen.
-          </p>
-        </div>
-
-        {/* AI Status Indicator - Show when AI is not available */}
-        {!aiAvailable && (
-          <AIStatusIndicator 
-            onStatusChange={(status) => {
-              setAiAvailable(status.available);
-            }}
-          />
-        )}
-
-        {/* Debug Components - Only show when debug mode is enabled */}
-        {debugMode && (
-          <>
-            <DemoInstructions />
-            <AITestComponent />
-          </>
-        )}
-
+      <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-full flex flex-col">
+        <div className="space-y-8 flex-1">
         {/* Statistics */}
         {invoices && invoices.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-card border border-border rounded-lg p-6 text-center">
               <div className="text-2xl font-bold text-primary">{invoices?.length || 0}</div>
               <div className="text-sm text-muted-foreground">Total Invoices</div>
@@ -434,200 +314,163 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Upload Section */}
-        <div className="space-y-8 mb-8">
-          {/* Main Upload Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left column - Sample Images + Development Tools + Quick Image Description */}
-            <div className="space-y-6">
-              <div className="bg-card border border-border rounded-lg p-6">
-                <SampleImages 
-                  onImageSelect={async (file) => {
-                    // Convert single file to DragDropFile format
-                    const dragDropFile: DragDropFile = {
-                      file,
-                      preview: URL.createObjectURL(file),
-                      id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-                    };
-                    await handleFilesDropped([dragDropFile]);
-                  }}
-                  disabled={processing.status === 'processing' || !aiAvailable}
-                />
-                {processing.status === 'processing' && (
-                  <div className="mt-3 text-center">
-                    <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      Processing sample image...
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Development Tools - Always visible */}
-              {invoices.length > 0 && (
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Development Tools</h3>
-                      <p className="text-xs text-muted-foreground mt-1">Reset app to clean state</p>
-                    </div>
-                    <DeleteAllData 
-                      onDeleteAll={handleDeleteAllData}
-                      disabled={processing.status === 'processing'}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Image Description - Only show when debug mode is enabled */}
-              {debugMode && (
-                <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Quick Image Description</h2>
-                    {describeLoading && <span className="text-sm text-muted-foreground">Processing…</span>}
-                  </div>
-                  <ImageDescribeDropzone onFileSelected={handleDescribeImage} disabled={describeLoading} />
-                  {describeResult && (
-                    <div className="space-y-2">
-                      <div className="bg-muted/50 border border-border rounded-md p-3 text-sm text-left whitespace-pre-wrap">
-                        {describeResult}
-                      </div>
-                      {describeResponseTime && (
-                        <div className="text-xs text-muted-foreground text-right">
-                          Response time: {describeResponseTime}ms
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {describeError && (
-                    <div className="text-sm text-red-600">
-                      {describeError}
-                    </div>
-                  )}
-                  {!describeLoading && !describeResult && !describeError && (
-                    <p className="text-xs text-muted-foreground">
-                      Need to sanity check a tricky image? Drop it here to see what the model can perceive before running the full invoice extraction.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Right column - Upload Invoices */}
-            <div>
-              <InvoiceDropzone
-                onFilesDropped={handleFilesDropped}
-                processing={processing}
-                maxFiles={5}
-              />
-              {lastProcessingTime !== null && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Last response time: {(lastProcessingTime / 1000).toFixed(1)}s
-                </p>
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        {/* AI Query Section */}
-        {invoices.length > 0 && (
-          <AIPromptInput 
-            disabled={!aiAvailable || processing.status === 'processing'}
-          />
-        )}
-
-        {/* Google Sheets Sync Section */}
-        {invoices.length > 0 && (
-          <GoogleSheetsSync 
-            invoices={invoices}
-            disabled={processing.status === 'processing'}
-          />
-        )}
-
-        {/* Invoice List Section */}
-        {invoices.length > 0 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Invoice List</h2>
-              <div className="text-sm text-muted-foreground">
-                {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-            {agentSummaries.length > 0 && (
-              <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Agent Performance</h2>
-                  {selectedAgent && (
-                    <button onClick={clearAgentFilter} className="text-sm text-primary hover:underline">
-                      Clear filter
+        {/* Charts Section */}
+        {invoices && invoices.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Revenue Card with 3 views */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  {revenueView === 'daily' ? 'Daily Revenue (Last 30 Days)' : 
+                   revenueView === 'monthly' ? 'Monthly Revenue' : 
+                   'Revenue by Store'}
+                </h3>
+                <div className="flex items-center space-x-1 bg-muted/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setRevenueView('daily')}
+                    className={`p-2 rounded-md transition-colors ${
+                      revenueView === 'daily' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'hover:bg-muted'
+                    }`}
+                    title="Daily Revenue"
+                  >
+                    <MdCalendarToday className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setRevenueView('monthly')}
+                    className={`p-2 rounded-md transition-colors ${
+                      revenueView === 'monthly' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'hover:bg-muted'
+                    }`}
+                    title="Monthly Revenue"
+                  >
+                    <MdCalendarMonth className="w-5 h-5" />
+                  </button>
+                  {storeSpendingData.length > 1 && (
+                    <button
+                      onClick={() => setRevenueView('store')}
+                      className={`p-2 rounded-md transition-colors ${
+                        revenueView === 'store' 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'hover:bg-muted'
+                      }`}
+                      title="Revenue by Store"
+                    >
+                      <MdStore className="w-5 h-5" />
                     </button>
                   )}
                 </div>
-                <div className="space-y-3">
-                  {agentSummaries.map((agent) => {
-                    const isActive = selectedAgent === agent.name;
-                    return (
-                      <div
-                        key={agent.name}
-                        className={`border rounded-lg p-3 transition-colors ${isActive ? 'border-primary bg-primary/5' : 'border-border'}`}
-                      >
-                        <button className="w-full text-left" onClick={() => handleAgentSelect(agent.name)}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-semibold text-sm">{agent.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {agent.totalInvoices} invoice{agent.totalInvoices !== 1 ? 's' : ''}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-semibold text-primary">
-                                {formatCurrencyWithLocale(agent.totalAmount, primaryCurrency)}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Avg {formatCurrencyWithLocale(agent.averageTicket, primaryCurrency)}
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                        {isActive && agent.monthlyTotals.length > 0 && (
-                          <div className="mt-3 border-t border-border pt-3 space-y-2 text-xs text-muted-foreground">
-                            <div className="font-medium text-foreground">Monthly totals</div>
-                            {agent.monthlyTotals.slice(0, 6).map((month) => (
-                              <div key={`${agent.name}-${month.month}`} className="flex justify-between">
-                                <span>{formatMonthLabel(month.month)}</span>
-                                <span className="font-medium text-foreground">
-                                  {formatCurrencyWithLocale(month.amount, primaryCurrency)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
-            )}
+              
+              {/* Render chart based on selected view */}
+              {(revenueView === 'daily' || revenueView === 'monthly') && (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={revenueView === 'daily' ? dailyRevenueData : monthlyRevenueData}>
+                    <defs>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#c4b5fd" stopOpacity={0.5}/>
+                        <stop offset="95%" stopColor="#c4b5fd" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#6b7280" />
+                    <YAxis 
+                      tick={{ fontSize: 12 }} 
+                      stroke="#6b7280"
+                      tickFormatter={(value) => value.toLocaleString()}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                      formatter={(value: number) => formatCurrencyWithLocale(value, primaryCurrency)}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="amount" 
+                      stroke="#a78bfa" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#colorAmount)"
+                      animationDuration={800}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+              
+              {/* Store pie chart */}
+              {revenueView === 'store' && storeSpendingData.length > 0 && (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={storeSpendingData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }: any) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      animationDuration={800}
+                    >
+                      {storeSpendingData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrencyWithLocale(value, primaryCurrency)}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
 
-            {selectedInvoice ? (
-              <InvoiceDetails
-                invoice={selectedInvoice}
-                onAgentSelect={handleAgentSelect}
-                onBack={() => setSelectedInvoice(null)}
-              />
-            ) : (
-              <InvoiceList
-                invoices={filteredInvoices}
-                onInvoiceSelect={handleInvoiceSelect}
-                onInvoiceDelete={handleInvoiceDelete}
-                loading={false}
-                onAgentSelect={handleAgentSelect}
-                activeAgent={selectedAgent}
-              />
-            )}
+            {/* Top 5 Customers */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  Top 5 {showAgents ? 'Agents' : 'Customers'}
+                </h3>
+                <button
+                  onClick={() => setShowAgents(!showAgents)}
+                  className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                  title={showAgents ? 'Switch to Customers' : 'Switch to Agents'}
+                >
+                  {showAgents ? (
+                    <MdStoreMallDirectory className="w-5 h-5 text-muted-foreground hover:text-foreground" />
+                  ) : (
+                    <MdPerson className="w-5 h-5 text-muted-foreground hover:text-foreground" />
+                  )}
+                </button>
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={showAgents ? topAgentsData : topMerchantsData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    type="number" 
+                    tick={{ fontSize: 12 }} 
+                    stroke="#6b7280"
+                    tickFormatter={(value) => value.toLocaleString()}
+                  />
+                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} stroke="#6b7280" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value: number) => formatCurrencyWithLocale(value, primaryCurrency)}
+                  />
+                  <Bar dataKey="amount" fill="#fcd34d" radius={[0, 4, 4, 0]} animationDuration={800} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
           </div>
         )}
+
+        {/* Ask AI Section */}
+        {invoices && invoices.length > 0 && (
+          <AIPromptInput disabled={false} />
+        )}
+
       </div>
     </div>
   );

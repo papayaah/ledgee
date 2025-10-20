@@ -16,14 +16,14 @@ export class GoogleSheetsSync {
   }
 
   // Method 1: Export to CSV for manual import
-  exportToCSV(invoices: DatabaseInvoice[]): void {
+  exportToCSV(invoices: DatabaseInvoice[]): string {
     const headers = [
-      'Date',
-      'Merchant Name', 
-      'Total',
+      'DATE',
+      'INVOICE',
+      'AMOUNT',
+      'AGENT',
+      'STORE',
       'Currency',
-      'Agent Name',
-      'Invoice Number',
       'Payment Method',
       'Phone Number',
       'Email',
@@ -35,11 +35,11 @@ export class GoogleSheetsSync {
       headers.join(','),
       ...invoices.map(invoice => [
         invoice.date,
-        `"${invoice.merchantName}"`,
-        invoice.total,
-        invoice.currency || 'PHP',
-        `"${invoice.agentName || ''}"`,
         `"${invoice.invoiceNumber || ''}"`,
+        invoice.total,
+        `"${invoice.agentName || ''}"`,
+        `"${invoice.merchantName}"`,
+        invoice.currency || 'PHP',
         `"${invoice.paymentMethod || ''}"`,
         `"${invoice.phoneNumber || ''}"`,
         `"${invoice.email || ''}"`,
@@ -48,6 +48,13 @@ export class GoogleSheetsSync {
       ].join(','))
     ].join('\n');
 
+    return csvContent;
+  }
+
+  // Method 1b: Download CSV file
+  downloadCSV(invoices: DatabaseInvoice[]): void {
+    const csvContent = this.exportToCSV(invoices);
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -68,15 +75,15 @@ export class GoogleSheetsSync {
     try {
       const values = invoices.map(invoice => [
         invoice.date,
-        invoice.merchantName,
-        invoice.total,
-        invoice.currency || 'PHP',
-        invoice.agentName || '',
         invoice.invoiceNumber || '',
+        String(invoice.total),
+        invoice.agentName || '',
+        invoice.merchantName,
+        invoice.currency || 'PHP',
         invoice.paymentMethod || '',
         invoice.phoneNumber || '',
         invoice.email || '',
-        invoice.items?.length || 0,
+        String(invoice.items?.length || 0),
         invoice.createdAt
       ]);
 
@@ -84,19 +91,19 @@ export class GoogleSheetsSync {
       const hasHeaders = await this.checkIfSheetHasHeaders();
       if (!hasHeaders) {
         const headers = [
-          'Date',
-          'Merchant Name',
-          'Total', 
+          'DATE',
+          'INVOICE',
+          'AMOUNT',
+          'AGENT',
+          'STORE',
           'Currency',
-          'Agent Name',
-          'Invoice Number',
           'Payment Method',
           'Phone Number',
           'Email',
           'Items Count',
           'Created At'
         ];
-        await this.appendRow(headers);
+        await this.appendRow([headers]);
       }
 
       // Add invoice data
@@ -159,5 +166,5 @@ export const createGoogleSheetsSync = (spreadsheetId: string, apiKey?: string) =
 // Export CSV function for easy use
 export const exportInvoicesToCSV = (invoices: DatabaseInvoice[]) => {
   const sync = new GoogleSheetsSync({ spreadsheetId: '' });
-  sync.exportToCSV(invoices);
+  sync.downloadCSV(invoices);
 };

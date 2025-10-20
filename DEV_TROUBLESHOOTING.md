@@ -1,4 +1,4 @@
-# Shaw AI - Development Troubleshooting Guide
+# Ledgee - Development Troubleshooting Guide
 
 ## 🔧 Hot Reload Issues
 

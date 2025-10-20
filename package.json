@@ -1,9 +1,9 @@
 {
-  "name": "shawai",
+  "name": "ledgee",
   "version": "1.0.0",
-  "description": "Shaw AI - Offline-first invoice extraction webapp using Chrome's built-in AI",
+  "description": "Ledgee - Offline-first invoice extraction webapp using Chrome's built-in AI",
   "scripts": {
-    "dev": "next dev --turbo -p 3002",
+    "dev": "next dev --turbo",
     "dev:legacy": "next dev",
     "build": "next build",
     "export": "next build && next export",
@@ -28,12 +28,24 @@
   "dependencies": {
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
+    "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "^18.0.0",
+    "@vercel/analytics": "^1.5.0",
+    "dexie": "^4.2.1",
+    "dexie-react-hooks": "^4.2.0",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^128.0.0",
     "next": "^14.2.0",
     "react": "^18.2.0",
+    "react-datepicker": "^8.7.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
-    "typescript": "^5.0.0"
+    "react-markdown": "^10.1.0",
+    "react-medium-image-zoom": "^5.4.0",
+    "recharts": "^3.2.1",
+    "remark-gfm": "^4.0.1",
+    "typescript": "^5.0.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.0",

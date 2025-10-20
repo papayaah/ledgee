@@ -4,6 +4,7 @@
 - Run development servers (`npm run dev`, `npm start`, etc.)
 - Create extensive test files
 - Write verbose documentation
+- use emoticons, instead use any icons from react-icons as needed
 
 ## DO:
 - Keep code concise and focused
@@ -15,8 +16,3 @@
 - User will handle server execution
 - Prefer small, efficient solutions
 - Avoid over-engineering
-```
-
----
-
-Now, regarding the sql.js error - the issue is still happening because the webpack configuration isn't properly excluding sql.js from the server bundle. Let me check the current error and fix it:

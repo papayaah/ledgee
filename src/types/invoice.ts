@@ -20,7 +20,9 @@ export interface InvoiceAddress {
 export interface Invoice {
   id: string;
   merchantName: string;
+  merchantId?: string; // Reference to merchant record
   merchantAddress?: InvoiceAddress;
+  storeName?: string; // Store/location where invoice belongs
   invoiceNumber?: string;
   date: string;
   time?: string;
@@ -31,16 +33,22 @@ export interface Invoice {
   currency?: string;
   paymentMethod?: string;
   agentName?: string;
+  agentId?: string; // Reference to agent record
   terms?: string;
   termsDays?: number;
   phoneNumber?: string;
   email?: string;
   website?: string;
   notes?: string;
-  imageUrl?: string;
+  imageUrl?: string; // @deprecated - Use imageData instead
+  imageData?: string; // Base64 encoded image data stored in IndexedDB
   extractedAt: string;
   confidence?: number;
   rawText?: string;
+  // AI Extraction Metadata
+  aiModel?: string; // 'chrome-builtin' or 'gemini-api'
+  aiResponseTime?: number; // Time taken for AI extraction in milliseconds
+  aiExtractedFrom?: 'image' | 'manual'; // Whether it was AI-extracted or manually entered
 }
 
 export interface InvoiceExtractionResult {
@@ -51,10 +59,13 @@ export interface InvoiceExtractionResult {
   errors?: string[];
 }
 
+export type InvoiceStatus = 'review' | 'approved';
+
 export interface DatabaseInvoice extends Invoice {
   createdAt: string;
   updatedAt: string;
   processingTime?: number;
+  status?: InvoiceStatus; // review or approved
 }
 
 export interface AIExtractionRequest {
@@ -102,6 +113,8 @@ export interface ProcessingStatus {
   status: 'idle' | 'processing' | 'completed' | 'error';
   message?: string;
   progress?: number;
+  current?: number;
+  total?: number;
 }
 
 export interface InvoiceStats {

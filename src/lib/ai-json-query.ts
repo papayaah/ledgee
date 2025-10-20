@@ -2,6 +2,7 @@
 
 import { invoiceDb } from './database';
 import { DatabaseInvoice } from '@/types/invoice';
+import { GeminiAPI } from './gemini-api';
 
 // Schema definition for the LanguageModel to understand our JSON data structure
 const JSON_DATA_SCHEMA = `
@@ -38,12 +39,33 @@ All data is stored as an array of invoice objects in localStorage.
 
 export class AIJSONQueryEngine {
   private languageModel: any = null;
+  private geminiAPI: GeminiAPI | null = null;
   private isInitialized = false;
+  private useOnlineGemini = false;
+
+  setProvider(useOnlineGemini: boolean, apiKey?: string) {
+    this.useOnlineGemini = useOnlineGemini;
+    this.isInitialized = false;
+    
+    if (useOnlineGemini && apiKey) {
+      this.geminiAPI = new GeminiAPI(apiKey);
+    } else {
+      this.geminiAPI = null;
+    }
+  }
 
   async initialize(): Promise<boolean> {
     if (this.isInitialized) return true;
 
     try {
+      if (this.useOnlineGemini) {
+        if (!this.geminiAPI) {
+          throw new Error('Gemini API not initialized. Please provide API key.');
+        }
+        this.isInitialized = true;
+        return true;
+      }
+
       if (!('LanguageModel' in window)) {
         console.warn('LanguageModel not available');
         return false;
@@ -109,7 +131,7 @@ export class AIJSONQueryEngine {
       const relevantData = this.extractRelevantData(invoices, question);
       
       // Step 2: Create a summary of the data for AI analysis
-      const dataSummary = this.createDataSummary(invoices, question);
+      const dataSummary = this.createDataSummary(invoices);
       
       // Step 3: Analyze the summarized data
       const analysisPrompt = `
@@ -129,7 +151,24 @@ export class AIJSONQueryEngine {
         Format your response as a clear, detailed answer that directly addresses the question.
       `;
 
-      const response = await this.languageModel.prompt(analysisPrompt);
+      let response: string;
+      if (this.useOnlineGemini && this.geminiAPI) {
+        // Use Gemini API
+        const request = {
+          contents: [{
+            parts: [this.geminiAPI.createTextPart(analysisPrompt)]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 2048,
+          }
+        };
+        response = await this.geminiAPI.generateContent(request);
+      } else {
+        // Use Chrome LanguageModel
+        response = await this.languageModel.prompt(analysisPrompt);
+      }
+      
       const answer = this.extractTextFromResponse(response);
 
       return {
@@ -147,8 +186,7 @@ export class AIJSONQueryEngine {
     }
   }
 
-  private createDataSummary(invoices: DatabaseInvoice[], question: string): string {
-    const lowerQuestion = question.toLowerCase();
+  private createDataSummary(invoices: DatabaseInvoice[]): string {
     
     // Basic stats
     const totalInvoices = invoices.length;
@@ -379,8 +417,6 @@ export class AIJSONQueryEngine {
       // Date-based examples (based on actual date ranges)
       const dates = invoices.map(inv => new Date(inv.date)).filter(d => !isNaN(d.getTime()));
       if (dates.length > 0) {
-        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
         
         // Get unique years from the data
         const years = Array.from(new Set(dates.map(d => d.getFullYear()))).sort();

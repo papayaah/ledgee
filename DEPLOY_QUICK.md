@@ -1,6 +1,6 @@
-# 🚀 Shaw AI - Quick Deployment Guide
+# 🚀 Ledgee - Quick Deployment Guide
 
-Shaw AI is a **100% client-side** web app. No server needed!
+Ledgee is a **100% client-side** web app. No server needed!
 
 ## ⚡ Quick Deploy (30 seconds)
 
@@ -86,7 +86,7 @@ npm run build:static
 
 ## 🎯 That's It!
 
-Your Shaw AI app is now a static website that works completely offline. No Node.js server required in production!
+Your Ledgee app is now a static website that works completely offline. No Node.js server required in production!
 
 **File size**: 1.9MB total  
 **Load time**: < 3 seconds on 3G  

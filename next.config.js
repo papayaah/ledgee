@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static export for offline-first deployment
-  output: 'export',
+  // Removed output: 'export' to enable dynamic routes and runtime data
+  // output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   
@@ -21,9 +21,10 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
-  // Configure images for static export
+  // Configure images
   images: {
-    unoptimized: true,
+    // Enable image optimization for better performance
+    unoptimized: false,
   },
   
   webpack: (config, { dev, isServer }) => {
@@ -65,28 +66,6 @@ const nextConfig = {
     }
 
     return config;
-  },
-  
-  // Headers for Chrome AI API access (only in development)
-  async headers() {
-    if (process.env.NODE_ENV === 'development') {
-      return [
-        {
-          source: '/(.*)',
-          headers: [
-            {
-              key: 'Cross-Origin-Embedder-Policy',
-              value: 'require-corp',
-            },
-            {
-              key: 'Cross-Origin-Opener-Policy',
-              value: 'same-origin',
-            },
-          ],
-        },
-      ];
-    }
-    return [];
   },
 }
 

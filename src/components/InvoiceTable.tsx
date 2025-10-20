@@ -14,10 +14,6 @@ export default function InvoiceDetails({
   onBack
 }: InvoiceDetailsProps) {
   
-  const handleAgentClick = (e: React.MouseEvent, agentName: string) => {
-    e.stopPropagation();
-    onAgentSelect(agentName);
-  };
 
   return (
     <div className="space-y-4">

@@ -12,7 +12,6 @@ interface InvoiceDropzoneProps {
 
 export default function InvoiceDropzone({
   onFilesDropped,
-  processing,
   maxFiles = 10,
   acceptedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 }: InvoiceDropzoneProps) {
@@ -46,8 +45,6 @@ export default function InvoiceDropzone({
   }, []);
 
   const processFiles = useCallback((files: File[]) => {
-    if (processing.status === 'processing') return;
-
     const validFiles = files
       .filter(file => acceptedTypes.includes(file.type))
       .slice(0, maxFiles);
@@ -61,7 +58,7 @@ export default function InvoiceDropzone({
     }));
 
     onFilesDropped(processedFiles);
-  }, [processing.status, acceptedTypes, maxFiles, onFilesDropped]);
+  }, [acceptedTypes, maxFiles, onFilesDropped]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -82,9 +79,6 @@ export default function InvoiceDropzone({
     fileInputRef.current?.click();
   };
 
-  const isProcessing = processing.status === 'processing';
-  const isDisabled = isProcessing;
-
   return (
     <div className="w-full">
       {/* Hidden file input */}
@@ -95,7 +89,6 @@ export default function InvoiceDropzone({
         accept={acceptedTypes.join(',')}
         onChange={handleFileInput}
         className="hidden"
-        disabled={isDisabled}
       />
 
       {/* Drop zone */}
@@ -104,7 +97,7 @@ export default function InvoiceDropzone({
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onClick={!isDisabled ? openFileDialog : undefined}
+        onClick={openFileDialog}
         className={`
           relative min-h-[300px] w-full rounded-lg border-2 border-dashed 
           transition-all duration-200 cursor-pointer group
@@ -112,7 +105,6 @@ export default function InvoiceDropzone({
             ? 'border-primary bg-primary/5 scale-[1.02]' 
             : 'border-border hover:border-primary/50 hover:bg-primary/2'
           }
-          ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         {/* Drop overlay */}
@@ -127,66 +119,35 @@ export default function InvoiceDropzone({
 
         {/* Main content */}
         <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-          {isProcessing ? (
-            <>
-              <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
-              <h3 className="text-lg font-semibold mb-2">Processing Invoice...</h3>
-              <p className="text-muted-foreground mb-2">{processing.message}</p>
-              {processing.progress !== undefined && (
-                <div className="w-64 h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${processing.progress}%` }}
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Icon */}
-              <div className="mb-6 text-6xl group-hover:scale-110 transition-transform duration-200">
-                📄
-              </div>
+          {/* Icon */}
+          <div className="mb-6 text-6xl group-hover:scale-110 transition-transform duration-200">
+            📄
+          </div>
 
-              {/* Title */}
-              <h3 className="text-2xl font-bold mb-2 text-foreground">
-                Drop Your Invoice Images
-              </h3>
+          {/* Title */}
+          <h3 className="text-2xl font-bold mb-2 text-foreground">
+            Drop Your Invoice Images
+          </h3>
 
-              {/* Description */}
-              <p className="text-muted-foreground mb-6 max-w-md">
-                Drag and drop your invoice images here, or click to browse. 
-                Shaw AI will extract all the important information automatically.
-              </p>
+          {/* Description */}
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Drag and drop your invoice images here, or click to browse. 
+            Images will be added to the processing queue automatically.
+          </p>
 
-              {/* Upload button */}
-              <button className="bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors duration-200">
-                Browse Files
-              </button>
+          {/* Upload button */}
+          <button className="bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors duration-200">
+            Browse Files
+          </button>
 
-              {/* File info */}
-              <div className="mt-6 text-sm text-muted-foreground space-y-1">
-                <p>Supported formats: JPG, PNG, WebP</p>
-                <p>Maximum {maxFiles} files at once</p>
-              </div>
-            </>
-          )}
+          {/* File info */}
+          <div className="mt-6 text-sm text-muted-foreground space-y-1">
+            <p>Supported formats: JPG, PNG, WebP</p>
+            <p>Maximum {maxFiles} files at once</p>
+          </div>
         </div>
 
-        {/* Processing status */}
-        {processing.status === 'error' && (
-          <div className="absolute top-4 right-4 bg-destructive text-destructive-foreground px-3 py-1 rounded-md text-sm">
-            Processing failed
-          </div>
-        )}
-
-        {processing.status === 'completed' && (
-          <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-md text-sm">
-            Extraction complete!
-          </div>
-        )}
       </div>
-
     </div>
   );
 }

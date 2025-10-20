@@ -23,7 +23,7 @@ export function formatCurrency(
       style: 'currency',
       currency: currency,
     }).format(amount);
-  } catch (error) {
+  } catch {
     // Fallback to USD if currency is invalid
     console.warn(`Invalid currency code: ${currency}, falling back to USD`);
     return new Intl.NumberFormat('en-US', {
@@ -176,7 +176,7 @@ export function getCurrencySymbol(currency: string, locale: string = 'en-US'): s
     const formatted = formatter.formatToParts(0);
     const currencyPart = formatted.find(part => part.type === 'currency');
     return currencyPart?.value || currency;
-  } catch (error) {
+  } catch {
     return currency;
   }
 }

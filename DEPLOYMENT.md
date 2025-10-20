@@ -1,6 +1,6 @@
-# Shaw AI - Deployment Guide
+# Ledgee - Deployment Guide
 
-Shaw AI is a **100% client-side, offline-first** web application. No server required!
+Ledgee is a **100% client-side, offline-first** web application. No server required!
 
 ## 🚀 Quick Deploy
 
@@ -113,7 +113,7 @@ Create `.env.local` for build-time variables:
 
 ```env
 # App configuration
-NEXT_PUBLIC_APP_NAME=Shaw AI
+NEXT_PUBLIC_APP_NAME=Ledgee
 NEXT_PUBLIC_VERSION=1.0.0
 
 # Analytics (optional)
@@ -143,7 +143,7 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval'; st
 
 ## 📱 PWA Configuration
 
-Shaw AI is automatically configured as a PWA:
+Ledgee is automatically configured as a PWA:
 
 - ✅ **Offline caching** via Next.js
 - ✅ **Install prompt** on supported browsers
@@ -273,7 +273,7 @@ Consider adding:
 
 ```yaml
 # .github/workflows/deploy.yml
-name: Deploy Shaw AI
+name: Deploy Ledgee
 
 on:
   push:
@@ -355,7 +355,7 @@ Before going live:
 
 ---
 
-**🎉 That's it!** Shaw AI is now deployed as a blazing-fast, offline-first web app with no server required.
+**🎉 That's it!** Ledgee is now deployed as a blazing-fast, offline-first web app with no server required.
 
 **Live example**: `https://your-domain.com`
 **Source**: Your static files work anywhere!

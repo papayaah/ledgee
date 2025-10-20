@@ -72,3 +72,13 @@ temp/
 # Package lock files (keep one)
 # package-lock.json
 # yarn.lock
+
+# Security - Google Service Account Keys
+*-service-account.json
+oh-my-receipts-*.json
+
+# Security - API Keys and Secrets
+.env.local
+.env.production.local
+.env.development.local
+LOCAL_SETUP.md
