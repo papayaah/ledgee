@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// This route reads request headers (origin). Mark as dynamic to silence static-optimization warning
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Generate OAuth URL
@@ -12,7 +15,8 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-    const redirectUri = `${request.nextUrl.origin}/api/google-auth/callback`;
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || '';
+    const redirectUri = `${origin}/api/google-auth/callback`;
     
     const scopes = [
       'https://www.googleapis.com/auth/spreadsheets',
