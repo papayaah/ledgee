@@ -126,6 +126,10 @@ export default function AboutPullout() {
                         >
                           https://strostudio.com
                         </a>
+                        <br />
+                        <span className="text-sm text-muted-foreground italic">
+                          Stro Studio - Small apps, big heart.
+                        </span>
                       </p>
                       <p>
                         <strong>GitHub:</strong>{' '}
