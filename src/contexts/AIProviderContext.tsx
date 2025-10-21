@@ -11,7 +11,7 @@ interface AIProviderContextType {
 
 const AIProviderContext = createContext<AIProviderContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'shawai_provider_preference';
+const STORAGE_KEY = 'ledgee_provider_preference';
 
 export function AIProviderProvider({ children }: { children: ReactNode }) {
   const [useOnlineGemini, setUseOnlineGeminiState] = useState(false);

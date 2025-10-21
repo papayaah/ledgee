@@ -39,7 +39,7 @@ export const useAppStateStore = create<AppStateStore>()(
       setIsDemoActive: (active) => set({ isDemoActive: active }),
     }),
     {
-      name: 'shawai-app-state',
+      name: 'ledgee-app-state',
     }
   )
 );

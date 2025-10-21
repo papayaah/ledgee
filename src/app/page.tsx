@@ -201,7 +201,8 @@ export default function HomePage() {
     return sorted;
   }, [invoices]);
 
-  const COLORS = ['#c4b5fd', '#fcd34d', '#6ee7b7', '#93c5fd', '#fca5a5', '#f9a8d4']; // Pastel colors
+  // Colors inspired by Stro Studio logo - professional and vibrant
+  const COLORS = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444']; // Stro Studio inspired colors
 
   // Initialize database
   useEffect(() => {
@@ -459,7 +460,7 @@ export default function HomePage() {
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                     formatter={(value: number) => formatCurrencyWithLocale(value, primaryCurrency)}
                   />
-                  <Bar dataKey="amount" fill="#fcd34d" radius={[0, 4, 4, 0]} animationDuration={800} />
+                  <Bar dataKey="amount" fill="#6366f1" radius={[0, 4, 4, 0]} animationDuration={800} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -37,17 +37,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://shawai.vercel.app',
+    url: 'https://www.ledgee.app',
     siteName: 'Ledgee',
-    title: 'Ledgee - AI-Powered Invoice Extraction & Analytics',
+    title: 'Ledgee - Built-in AI Invoice Extraction & Analytics',
     description: 'Perfect for mom-and-pop shops! Ledgee is an offline-first AI invoice extraction tool powered by Chrome\'s built-in AI. Extract invoice data instantly without internet, generate reports, and sync to Google Sheets.',
     images: [
       {
-        url: '/imgs/screenshots/dashboard.jpg',
+        url: '/imgs/screenshots/ledgee.png',
         width: 1200,
         height: 630,
         alt: 'Ledgee Dashboard - AI Invoice Extraction and Analytics',
-        type: 'image/jpeg',
+        type: 'image/png',
       }
     ],
   },
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@papayaahtries',
     creator: '@papayaahtries',
-    title: 'Ledgee - AI-Powered Invoice Extraction & Analytics',
+    title: 'Ledgee - Built-in AI Invoice Extraction & Analytics',
     description: 'Perfect for mom-and-pop shops! Ledgee is an offline-first AI invoice extraction tool powered by Chrome\'s built-in AI. Extract invoice data instantly without internet.',
-    images: ['/imgs/screenshots/dashboard.jpg'],
+    images: ['/imgs/screenshots/ledgee.png'],
   },
   robots: {
     index: true,
@@ -74,7 +74,7 @@ export const metadata: Metadata = {
     google: 'your-google-verification-code', // Add your Google Search Console verification code
   },
   alternates: {
-    canonical: 'https://shawai.vercel.app',
+    canonical: 'https://www.ledgee.app',
   },
 }
 
@@ -101,7 +101,7 @@ export default function RootLayout({
               "@type": "WebApplication",
               "name": "Ledgee",
               "description": "AI-powered invoice extraction and analytics tool for small businesses, mom-and-pop shops, and local retailers using Chrome's built-in AI. Works offline, syncs to Google Sheets.",
-              "url": "https://shawai.vercel.app",
+              "url": "https://www.ledgee.app",
               "applicationCategory": "BusinessApplication",
               "operatingSystem": "Web Browser",
               "offers": {
@@ -125,7 +125,7 @@ export default function RootLayout({
               ],
               "codeRepository": "https://github.com/papayaah/ledgee",
               "supportUrl": "https://strostudio.com",
-              "screenshot": "https://shawai.vercel.app/imgs/screenshots/dashboard.jpg"
+              "screenshot": "https://www.ledgee.app/imgs/screenshots/ledgee.png"
             })
           }}
         />
