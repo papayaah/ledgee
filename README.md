@@ -17,7 +17,7 @@ Built-in AI invoice extraction for small businesses. Perfect for mom-and-pop sho
 
 - **Built-in Chrome AI** - Uses Chrome's native LanguageModel API with Gemini Nano
 - **Offline-First** - Works completely offline after initial load
-- **Local Database** - Stores all data locally using SQLite WASM
+- **Local Database** - Stores all data locally using IndexedDB
 - **Analytics & Reports** - Generate insights and export to Google Sheets
 - **Responsive Design** - Works seamlessly on desktop and mobile
 - **Privacy-Focused** - All processing happens locally in your browser
@@ -29,7 +29,7 @@ Built-in AI invoice extraction for small businesses. Perfect for mom-and-pop sho
 - **TypeScript** - Type-safe development
 - **Tailwind CSS** - Utility-first styling
 - **Chrome LanguageModel API** - Built-in Gemini Nano model
-- **SQL.js** - SQLite database in WebAssembly
+- **Dexie** - IndexedDB wrapper for client-side database
 - **Google Sheets API** - Export and sync functionality
 
 ## Usage

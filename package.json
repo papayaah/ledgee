@@ -25,6 +25,11 @@
   ],
   "author": "",
   "license": "ISC",
+  "homepage": "https://www.ledgee.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/papayaah/ledgee.git"
+  },
   "dependencies": {
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
