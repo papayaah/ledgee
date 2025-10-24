@@ -2,6 +2,10 @@
 
 Built-in AI invoice extraction for small businesses. Perfect for mom-and-pop shops! Extract invoice data instantly using Chrome's built-in AI, generate reports, and sync to Google Sheets.
 
+## Demo
+
+![Ledgee Demo](public/ledgee-demo.gif)
+
 ## Screenshots
 
 ### Dashboard
@@ -21,7 +25,7 @@ Built-in AI invoice extraction for small businesses. Perfect for mom-and-pop sho
 - **Analytics & Reports** - Generate insights and export to Google Sheets
 - **Responsive Design** - Works seamlessly on desktop and mobile
 - **Privacy-Focused** - All processing happens locally in your browser
-- **Smart Extraction** - Automatically extracts merchant, items, totals, dates
+- **Automatic Extraction** - Automatically extracts merchant, items, totals, dates
 
 ## Tech Stack
 
